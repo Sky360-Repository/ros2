@@ -1,0 +1,7 @@
+{
+    "cmake.sourceDirectory": "/workspaces/ros2/src/all_sky_publisher",
+    "files.associations": {
+        "functional": "cpp",
+        "chrono": "cpp"
+    }
+}
