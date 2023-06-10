@@ -4,14 +4,14 @@
 #include <opencv2/opencv.hpp>
 #include "rcl_interfaces/msg/parameter_event.hpp"
 
-class ImagePublisher : public rclcpp::Node
+class ImagePublisher 
+    : public rclcpp::Node
 {
 public:
     ImagePublisher() 
         : Node("all_sky_image_publisher_node")
     {
-        // this->publisher_ = this->create_publisher<sensor_msgs::msg::Image>("/image/image_raw", 10);
-        this->publisher_ = this->create_publisher<sensor_msgs::msg::Image>("/camera/image", 10);
+        this->publisher_ = this->create_publisher<sensor_msgs::msg::Image>("sky360/camera/original", 10);
         
         this->parameter_subscriber_ = this->create_subscription<rcl_interfaces::msg::ParameterEvent>(
             "/parameter_events", 10, std::bind(&ImagePublisher::parameter_callback, this, std::placeholders::_1));

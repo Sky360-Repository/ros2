@@ -5,7 +5,7 @@ FROM sky360/ros2-humble-dev:latest
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
-    && apt install ros-humble-vision-opencv ros-humble-cv-bridge \
+    # && apt-get -y install ros-humble-vision-opencv ros-humble-cv-bridge \
    && apt-get -y install --no-install-recommends python3-numpy libboost-python-dev \
    # Install colcon build tools
    && apt-get install -y --no-install-recommends python3-colcon-common-extensions \
@@ -16,7 +16,7 @@ RUN apt-get update \
    && apt-get clean -y
    # && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install tensorflow
+# RUN pip3 install tensorflow
 
 # RUN apt-get update && apt-get -y install vulcanexus-humble-base vulcanexus-humble-base
 
