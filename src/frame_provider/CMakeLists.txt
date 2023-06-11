@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
-project(all_sky_image_publisher)
+project(frame_provider)
 
 # Default to C++14
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
+  set(CMAKE_CXX_STANDARD 20)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -22,22 +22,20 @@ find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(rcl_interfaces REQUIRED)
 find_package(sky360lib REQUIRED)
+find_package(all_sky_image_publisher REQUIRED)
 
 include_directories(
   ${OpenCV_INCLUDE_DIRS}
 )
 
 # Node library
-add_executable(all_sky_image_publisher src/main.cpp)
-target_link_libraries(all_sky_image_publisher PUBLIC sky360lib)
-ament_target_dependencies(all_sky_image_publisher PUBLIC
-    rclcpp 
-    sensor_msgs 
-    cv_bridge 
-    OpenCV)
+add_executable(frame_provider src/main.cpp)
+target_link_libraries(frame_provider PUBLIC sky360lib)
+
+ament_target_dependencies(frame_provider PUBLIC rclcpp sensor_msgs cv_bridge OpenCV)
 
 install(TARGETS
-    all_sky_image_publisher
+    frame_provider
     DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
