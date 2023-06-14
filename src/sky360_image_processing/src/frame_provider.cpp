@@ -19,7 +19,7 @@ public:
     {
         // Subscribe to the input image topic
         image_subscription_ = create_subscription<sensor_msgs::msg::Image>(
-            "sky360/camera/bayered", rclcpp::QoS(10),
+            "sky360/camera/all_sky/bayered", rclcpp::QoS(10),
             std::bind(&FrameProvider::imageCallback, this, std::placeholders::_1));
 
         // Publish the manipulated image
@@ -33,7 +33,7 @@ private:
     {
         try
         {
-            // cv_bridge::CvImagePtr bayer_img = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::MONO8);
+            cv_bridge::CvImagePtr bayer_img = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::MONO8);
 
             // cv::Mat gray_img;
             // cv::cvtColor(cv_image->image, gray_img, cv::COLOR_BGR2GRAY);

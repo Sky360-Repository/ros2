@@ -1,75 +1,112 @@
-#include "rclcpp/rclcpp.hpp"
-#include "sensor_msgs/msg/image.hpp"
-#include "cv_bridge/cv_bridge.h"
-#include "rcl_interfaces/msg/parameter_event.hpp"
+#include <chrono>
 
-#include "all_sky_image_publisher/msg/image_info.hpp"
-#include "all_sky_image_publisher/msg/camera_info.hpp"
+#include "../../sky360_shared/include/parameter_node.hpp"
+
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/image.hpp>
+#include <cv_bridge/cv_bridge.h>
+#include <rcl_interfaces/msg/parameter_event.hpp>
+
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
 
 #include <opencv2/opencv.hpp>
 
-#include "sky360lib/api/camera/qhy_camera.hpp"
-#include "sky360lib/api/utils/autoExposureControl.hpp"
+#include <sky360lib/api/camera/qhy_camera.hpp>
+#include <sky360lib/api/utils/autoExposureControl.hpp>
 
+#include "sky360_camera/msg/image_info.hpp"
+#include "sky360_camera/msg/camera_info.hpp"
 
-class AllSkyImagePublisher 
-    : public rclcpp::Node
+class AllSkyPublisher
+    : public ParameterNode // rclcpp::Node
 {
 public:
-    AllSkyImagePublisher() 
-        : Node("all_sky_image_publisher_node")
+    AllSkyPublisher()
+        : ParameterNode("all_sky_image_publisher_node")
     {
-        image_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/camera/all_sky/original", 10);
-        image_info_publisher_ = create_publisher<all_sky_image_publisher::msg::ImageInfo>("sky360/camera/all_sky/image_info", 10);
-        camera_info_publisher_ = create_publisher<all_sky_image_publisher::msg::CameraInfo>("sky360/camera/all_sky/camera_info", 10);
-        
-        parameter_subscriber_ = create_subscription<rcl_interfaces::msg::ParameterEvent>(
-            "/parameter_events", 10, std::bind(&AllSkyImagePublisher::parameter_callback, this, std::placeholders::_1));
-        
-        open_camera();
+        image_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/camera/all_sky/bayer", 10);
+        image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/camera/all_sky/image_info", 10);
+        camera_info_publisher_ = create_publisher<sky360_camera::msg::CameraInfo>("sky360/camera/all_sky/camera_info", 10);
+
+        declare_parameters();
     }
 
     void start_publishing()
     {
+        open_camera();
+
         auto camera_info = qhy_camera_.get_camera_info();
         create_camera_info_msg(camera_info);
+
         cv::Mat image;
-        while(rclcpp::ok()) // checking for shutdown
+        double duration_total = 0.0;
+        double frames = 0.0;
+        while (rclcpp::ok())
         {
+            auto start = std::chrono::high_resolution_clock::now();
+
             auto camera_params = qhy_camera_.get_camera_params();
 
-            qhy_camera_.get_frame(image, true);
+            qhy_camera_.get_frame(image, false);
 
             apply_auto_exposure(image, camera_params);
 
             std_msgs::msg::Header header;
             header.stamp = this->now();
-            header.frame_id = "test_camera";
+            header.frame_id = boost::uuids::to_string(uuid_generator_());
 
             publish_image(image, header);
             publish_image_info(header, camera_params, camera_info);
             publish_camera_info(header);
 
-            // Handle callbacks
+            auto end = std::chrono::high_resolution_clock::now();
+            duration_total += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() / 1.0e9;
+            ++frames;
+            if (duration_total > 3.0)
+            {
+                RCLCPP_INFO(get_logger(), "%f fps", frames / duration_total);
+                duration_total = 0.0;
+                frames = 0.0;
+            }
+
             rclcpp::spin_some(this->get_node_base_interface());
         }
     }
 
-    void parameter_callback(const rcl_interfaces::msg::ParameterEvent::SharedPtr event)
+protected:
+    std::vector<rcl_interfaces::msg::SetParametersResult> set_parameters_callback(const std::vector<rclcpp::Parameter> &parameters_to_set) override
     {
-        // Here you should process changes in parameters.
-        // This is a skeleton, you'll need to add appropriate logic here.
+        auto set_results = this->set_parameters(parameters_to_set);
+
+        for (const auto &result : set_results)
+        {
+            if (!result.successful)
+            {
+                RCLCPP_ERROR(this->get_logger(), "Failed to set parameter: %s", result.reason.c_str());
+            }
+        }
+
+        return set_results;
     }
 
 private:
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_publisher_;
-    rclcpp::Publisher<all_sky_image_publisher::msg::ImageInfo>::SharedPtr image_info_publisher_;
-    rclcpp::Publisher<all_sky_image_publisher::msg::CameraInfo>::SharedPtr camera_info_publisher_;
-    rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr parameter_subscriber_;
+    rclcpp::Publisher<sky360_camera::msg::ImageInfo>::SharedPtr image_info_publisher_;
+    rclcpp::Publisher<sky360_camera::msg::CameraInfo>::SharedPtr camera_info_publisher_;
     sky360lib::camera::QhyCamera qhy_camera_;
     sky360lib::utils::AutoExposureControl auto_exposure_control_;
-    sky360lib::camera::QhyCamera::CameraInfo* camera_info;
-    all_sky_image_publisher::msg::CameraInfo camera_info_msg_;
+    sky360lib::camera::QhyCamera::CameraInfo *camera_info;
+    sky360_camera::msg::CameraInfo camera_info_msg_;
+    boost::uuids::random_generator uuid_generator_;
+
+    void declare_parameters()
+    {
+        std::vector<rclcpp::Parameter> parameters = {
+            rclcpp::Parameter("gain", 5),
+            rclcpp::Parameter("exposure", 20000)
+        };
+    }
 
     inline void open_camera()
     {
@@ -79,7 +116,7 @@ private:
         qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Gain, 5.0);
     }
 
-    inline void apply_auto_exposure(const cv::Mat& image, sky360lib::camera::QhyCamera::CameraParams& camera_params)
+    inline void apply_auto_exposure(const cv::Mat &image, sky360lib::camera::QhyCamera::CameraParams &camera_params)
     {
         const double exposure = (double)camera_params.exposure;
         const double gain = (double)camera_params.gain;
@@ -88,15 +125,15 @@ private:
         qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Gain, exposure_gain.gain);
     }
 
-    inline void publish_image(const cv::Mat& image, std_msgs::msg::Header& header)
+    inline void publish_image(const cv::Mat &image, std_msgs::msg::Header &header)
     {
-        auto image_msg = cv_bridge::CvImage(header, "bgr8", image).toImageMsg();
+        auto image_msg = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, image).toImageMsg();
         image_publisher_->publish(*image_msg);
     }
 
-    inline void publish_image_info(std_msgs::msg::Header& header, const sky360lib::camera::QhyCamera::CameraParams& camera_params, const sky360lib::camera::QhyCamera::CameraInfo* camera_info)
+    inline void publish_image_info(std_msgs::msg::Header &header, const sky360lib::camera::QhyCamera::CameraParams &camera_params, const sky360lib::camera::QhyCamera::CameraInfo *camera_info)
     {
-        all_sky_image_publisher::msg::ImageInfo image_info_msg;
+        sky360_camera::msg::ImageInfo image_info_msg;
         image_info_msg.header = header;
 
         image_info_msg.roi.start_x = camera_params.roi.start_x;
@@ -123,7 +160,7 @@ private:
         image_info_publisher_->publish(image_info_msg);
     }
 
-    inline void create_camera_info_msg(const sky360lib::camera::QhyCamera::CameraInfo* camera_info)
+    inline void create_camera_info_msg(const sky360lib::camera::QhyCamera::CameraInfo *camera_info)
     {
         camera_info_msg_.id = camera_info->id;
         camera_info_msg_.model = camera_info->model;
@@ -173,10 +210,10 @@ private:
         camera_info_msg_.temperature_limits.step = camera_info->temperature_limits.step;
     }
 
-    inline void publish_camera_info(std_msgs::msg::Header& header)
+    inline void publish_camera_info(std_msgs::msg::Header &header)
     {
         camera_info_msg_.header = header;
-   
+
         camera_info_publisher_->publish(camera_info_msg_);
     }
 };
@@ -184,7 +221,7 @@ private:
 int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
-    auto image_publisher = std::make_shared<AllSkyImagePublisher>();
+    auto image_publisher = std::make_shared<AllSkyPublisher>();
     image_publisher->start_publishing();
     rclcpp::shutdown();
     return 0;

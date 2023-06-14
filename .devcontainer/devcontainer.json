@@ -32,7 +32,8 @@
 				"path": "bash"
 			}
 		},
-		"terminal.integrated.defaultProfile.linux": "bash"
+		"terminal.integrated.defaultProfile.linux": "bash",
+        "C_Cpp.default.includePath": [ "/usr/include/**", "/usr/local/include/**" ]
 	},
 	"extensions": [
 		"althack.ament-task-provider",
