@@ -37,7 +37,8 @@ public:
         open_camera();
 
         auto camera_info = qhy_camera_.get_camera_info();
-        create_camera_info_msg(camera_info);
+        auto camera_params = qhy_camera_.get_camera_params();
+        create_camera_info_msg(camera_params, camera_info);
 
         cv::Mat image;
         double duration_total = 0.0;
@@ -46,7 +47,7 @@ public:
         {
             auto start = std::chrono::high_resolution_clock::now();
 
-            auto camera_params = qhy_camera_.get_camera_params();
+            camera_params = qhy_camera_.get_camera_params();
 
             qhy_camera_.get_frame(image, false);
 
@@ -153,14 +154,12 @@ private:
         image_info_msg.gamma = camera_params.gamma;
         image_info_msg.channels = camera_params.channels;
         image_info_msg.bin_mode = (uint32_t)camera_params.bin_mode;
-        image_info_msg.cool_enabled = camera_params.cool_enabled;
-        image_info_msg.target_temp = camera_params.target_temp;
         image_info_msg.current_temp = qhy_camera_.get_current_temp();
 
         image_info_publisher_->publish(image_info_msg);
     }
 
-    inline void create_camera_info_msg(const sky360lib::camera::QhyCamera::CameraInfo *camera_info)
+    inline void create_camera_info_msg(const sky360lib::camera::QhyCamera::CameraParams &camera_params, const sky360lib::camera::QhyCamera::CameraInfo *camera_info)
     {
         camera_info_msg_.id = camera_info->id;
         camera_info_msg_.model = camera_info->model;
@@ -208,6 +207,8 @@ private:
         camera_info_msg_.temperature_limits.min = camera_info->temperature_limits.min;
         camera_info_msg_.temperature_limits.max = camera_info->temperature_limits.max;
         camera_info_msg_.temperature_limits.step = camera_info->temperature_limits.step;
+        camera_info_msg_.cool_enabled = camera_params.cool_enabled;
+        camera_info_msg_.target_temp = camera_params.target_temp;
     }
 
     inline void publish_camera_info(std_msgs::msg::Header &header)

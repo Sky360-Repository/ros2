@@ -19,3 +19,5 @@ ParamLimits red_wb_limits
 ParamLimits green_wb_limits
 ParamLimits blue_wb_limits
 ParamLimits temperature_limits
+bool cool_enabled
+float64 target_temp
