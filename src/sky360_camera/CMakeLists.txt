@@ -35,9 +35,10 @@ set(msg_files
     "msg/ChipInfo.msg"
     "msg/ImageInfo.msg"
     "msg/ParamLimits.msg"
+    "msg/BayerImage.msg"
 )
 
-rosidl_generate_interfaces(${PROJECT_NAME} ${msg_files} DEPENDENCIES builtin_interfaces std_msgs)
+rosidl_generate_interfaces(${PROJECT_NAME} ${msg_files} DEPENDENCIES builtin_interfaces std_msgs sensor_msgs)
 
 ament_export_dependencies(rosidl_default_runtime)
 # End package definition

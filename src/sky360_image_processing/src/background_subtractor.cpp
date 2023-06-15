@@ -19,7 +19,7 @@ public:
     {
         // Subscribe to the input image topic
         image_subscription_ = create_subscription<sensor_msgs::msg::Image>(
-            "sky360/camera/original", rclcpp::QoS(10),
+            "sky360/frames/grey", rclcpp::QoS(10),
             std::bind(&BackgroundSubtractor::imageCallback, this, std::placeholders::_1));
 
         // Publish the manipulated image
@@ -31,16 +31,24 @@ private:
     {
         try
         {
-            cv_bridge::CvImagePtr cv_image = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
-
-            cv::Mat gray_img;
-            cv::cvtColor(cv_image->image, gray_img, cv::COLOR_BGR2GRAY);
+            auto start = std::chrono::high_resolution_clock::now();
+            cv_bridge::CvImagePtr cv_image = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::MONO8);
 
             cv::Mat mask;
-            background_subtractor_.apply(gray_img, mask);
+            background_subtractor_.apply(cv_image->image, mask);
             
             auto image_msg = cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::MONO8, mask).toImageMsg();
             image_publisher_->publish(*image_msg);
+
+            auto end = std::chrono::high_resolution_clock::now();
+            duration_total += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() / 1.0e9;
+            ++frames;
+            if (duration_total > 3.0)
+            {
+                RCLCPP_INFO(get_logger(), "%f fps", frames / duration_total);
+                duration_total = 0.0;
+                frames = 0.0;
+            }
         }
         catch (cv_bridge::Exception &e)
         {
@@ -51,6 +59,8 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_subscription_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_publisher_;
     sky360lib::bgs::WeightedMovingVariance background_subtractor_;
+    double duration_total = 0.0;
+    double frames = 0.0;
 };
 
 int main(int argc, char **argv)

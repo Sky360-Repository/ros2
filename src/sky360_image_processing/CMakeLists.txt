@@ -30,7 +30,7 @@ include_directories(
 # Frame Provider Node
 add_executable(frame_provider_node src/frame_provider.cpp)
 target_link_libraries(frame_provider_node PUBLIC sky360lib)
-ament_target_dependencies(frame_provider_node PUBLIC rclcpp sensor_msgs cv_bridge OpenCV)
+ament_target_dependencies(frame_provider_node PUBLIC rclcpp sensor_msgs cv_bridge OpenCV sky360_camera)
 install(TARGETS frame_provider_node DESTINATION lib/${PROJECT_NAME})
 
 # Frame Provider Node

@@ -17,6 +17,7 @@
 
 #include "sky360_camera/msg/image_info.hpp"
 #include "sky360_camera/msg/camera_info.hpp"
+#include "sky360_camera/msg/bayer_image.hpp"
 
 class AllSkyPublisher
     : public ParameterNode // rclcpp::Node
@@ -25,7 +26,7 @@ public:
     AllSkyPublisher()
         : ParameterNode("all_sky_image_publisher_node")
     {
-        image_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/camera/all_sky/bayer", 10);
+        image_publisher_ = create_publisher<sky360_camera::msg::BayerImage>("sky360/camera/all_sky/bayer", 10);
         image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/camera/all_sky/image_info", 10);
         camera_info_publisher_ = create_publisher<sky360_camera::msg::CameraInfo>("sky360/camera/all_sky/camera_info", 10);
 
@@ -57,8 +58,9 @@ public:
             header.stamp = this->now();
             header.frame_id = boost::uuids::to_string(uuid_generator_());
 
-            publish_image(image, header);
-            publish_image_info(header, camera_params, camera_info);
+            auto image_info_msg = generate_image_info(header, camera_params, camera_info);
+            publish_image(image, header, image_info_msg);
+            // publish_image_info(header, camera_params, camera_info);
             publish_camera_info(header);
 
             auto end = std::chrono::high_resolution_clock::now();
@@ -92,7 +94,7 @@ protected:
     }
 
 private:
-    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_publisher_;
+    rclcpp::Publisher<sky360_camera::msg::BayerImage>::SharedPtr image_publisher_;
     rclcpp::Publisher<sky360_camera::msg::ImageInfo>::SharedPtr image_info_publisher_;
     rclcpp::Publisher<sky360_camera::msg::CameraInfo>::SharedPtr camera_info_publisher_;
     sky360lib::camera::QhyCamera qhy_camera_;
@@ -115,6 +117,12 @@ private:
         qhy_camera_.open("");
         qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Exposure, 20000.0);
         qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Gain, 5.0);
+
+        uint32_t x = ((uint32_t)qhy_camera_.get_camera_info()->chip.max_image_width - (uint32_t)qhy_camera_.get_camera_info()->chip.max_image_height) / 2;
+        uint32_t y = 0;
+        uint32_t width = qhy_camera_.get_camera_info()->chip.max_image_height;
+        uint32_t height = qhy_camera_.get_camera_info()->chip.max_image_height;
+        qhy_camera_.set_resolution(x, y, width, height);
     }
 
     inline void apply_auto_exposure(const cv::Mat &image, sky360lib::camera::QhyCamera::CameraParams &camera_params)
@@ -126,13 +134,19 @@ private:
         qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Gain, exposure_gain.gain);
     }
 
-    inline void publish_image(const cv::Mat &image, std_msgs::msg::Header &header)
+    inline void publish_image(const cv::Mat &image, const std_msgs::msg::Header &header, const sky360_camera::msg::ImageInfo &image_info)
     {
         auto image_msg = cv_bridge::CvImage(header, sensor_msgs::image_encodings::MONO8, image).toImageMsg();
-        image_publisher_->publish(*image_msg);
+
+        sky360_camera::msg::BayerImage bayer_image_msg;
+        bayer_image_msg.header = header;
+        bayer_image_msg.image = *image_msg;
+        bayer_image_msg.info = image_info;
+
+        image_publisher_->publish(bayer_image_msg);
     }
 
-    inline void publish_image_info(std_msgs::msg::Header &header, const sky360lib::camera::QhyCamera::CameraParams &camera_params, const sky360lib::camera::QhyCamera::CameraInfo *camera_info)
+    inline sky360_camera::msg::ImageInfo generate_image_info(std_msgs::msg::Header &header, const sky360lib::camera::QhyCamera::CameraParams &camera_params, const sky360lib::camera::QhyCamera::CameraInfo *camera_info)
     {
         sky360_camera::msg::ImageInfo image_info_msg;
         image_info_msg.header = header;
@@ -156,7 +170,8 @@ private:
         image_info_msg.bin_mode = (uint32_t)camera_params.bin_mode;
         image_info_msg.current_temp = qhy_camera_.get_current_temp();
 
-        image_info_publisher_->publish(image_info_msg);
+        //image_info_publisher_->publish(image_info_msg);
+        return image_info_msg;
     }
 
     inline void create_camera_info_msg(const sky360lib::camera::QhyCamera::CameraParams &camera_params, const sky360lib::camera::QhyCamera::CameraInfo *camera_info)
