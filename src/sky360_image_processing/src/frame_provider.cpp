@@ -1,13 +1,10 @@
 #include <opencv2/opencv.hpp>
-#include "rclcpp/rclcpp.hpp"
-#include "sensor_msgs/msg/image.hpp"
-#include "cv_bridge/cv_bridge.h"
-#include "rcl_interfaces/msg/parameter_event.hpp"
 
 #include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/image.hpp>
-#include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
+
+#include <sensor_msgs/msg/image.hpp>
+#include <rcl_interfaces/msg/parameter_event.hpp>
 
 #include "sky360_camera/msg/image_info.hpp"
 #include "sky360_camera/msg/camera_info.hpp"
@@ -21,14 +18,11 @@ public:
     FrameProvider() 
         : Node("frame_provider_node")
     {
-        // Subscribe to the input image topic
-        image_subscription_ = create_subscription<sky360_camera::msg::BayerImage>(
-            "sky360/camera/all_sky/bayer", rclcpp::QoS(10),
+        image_subscription_ = create_subscription<sky360_camera::msg::BayerImage>("sky360/camera/all_sky/bayer", rclcpp::QoS(10),
             std::bind(&FrameProvider::imageCallback, this, std::placeholders::_1));
 
-        // Publish the manipulated image
-        image_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/original", rclcpp::QoS(10));
-        camera_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/camera/original", rclcpp::QoS(10));
+        // image_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/original", rclcpp::QoS(10));
+        // camera_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/camera/original", rclcpp::QoS(10));
         gray_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/grey", rclcpp::QoS(10));
         masked_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/masked", rclcpp::QoS(10));
         image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/camera/all_sky/image_info", rclcpp::QoS(10));
@@ -40,7 +34,7 @@ private:
         try
         {
             auto start = std::chrono::high_resolution_clock::now();
-            //RCLCPP_INFO(get_logger(), "Processing");
+
             cv_bridge::CvImagePtr bayer_img_bridge = cv_bridge::toCvCopy(msg->image, sensor_msgs::image_encodings::MONO8);
 
             cv::Mat debayered_img;
@@ -59,9 +53,9 @@ private:
             }
 
             auto color_image_msg = cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::BGR8, color_img).toImageMsg();
-            image_publisher_->publish(*color_image_msg);
             masked_publisher_->publish(*color_image_msg);
-            camera_publisher_->publish(*color_image_msg);
+            // image_publisher_->publish(*color_image_msg);
+            // camera_publisher_->publish(*color_image_msg);
 
             image_info_publisher_->publish(msg->info);
 
@@ -108,8 +102,8 @@ private:
     }
 
     rclcpp::Subscription<sky360_camera::msg::BayerImage>::SharedPtr image_subscription_;
-    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_publisher_;
-    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr camera_publisher_;
+    // rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_publisher_;
+    // rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr camera_publisher_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr gray_publisher_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr masked_publisher_;
     rclcpp::Publisher<sky360_camera::msg::ImageInfo>::SharedPtr image_info_publisher_;

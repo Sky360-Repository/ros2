@@ -1,23 +1,24 @@
 #include <chrono>
 
-#include "../../sky360_shared/include/parameter_node.hpp"
-
-#include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/image.hpp>
-#include <cv_bridge/cv_bridge.h>
-#include <rcl_interfaces/msg/parameter_event.hpp>
-
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 
 #include <opencv2/opencv.hpp>
 
-#include <sky360lib/api/camera/qhy_camera.hpp>
-#include <sky360lib/api/utils/autoExposureControl.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <cv_bridge/cv_bridge.h>
+
+#include <sensor_msgs/msg/image.hpp>
+#include <rcl_interfaces/msg/parameter_event.hpp>
 
 #include "sky360_camera/msg/image_info.hpp"
 #include "sky360_camera/msg/camera_info.hpp"
 #include "sky360_camera/msg/bayer_image.hpp"
+
+#include <sky360lib/api/camera/qhy_camera.hpp>
+#include <sky360lib/api/utils/autoExposureControl.hpp>
+
+#include "../../sky360_shared/include/parameter_node.hpp"
 
 class AllSkyPublisher
     : public ParameterNode // rclcpp::Node

@@ -3,7 +3,7 @@
 <package format="3">
   <name>sky360_launch</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Launching package for Sky360</description>
   <maintainer email="fabio.c.barros@gmail.com">ros</maintainer>
   <license>MIT</license>
 

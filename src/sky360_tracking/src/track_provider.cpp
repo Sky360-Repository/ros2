@@ -1,0 +1,142 @@
+#include <opencv2/opencv.hpp>
+
+#include <rclcpp/rclcpp.hpp>
+#include <cv_bridge/cv_bridge.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/time_synchronizer.h>
+
+#include <sensor_msgs/msg/image.hpp>
+#include <vision_msgs/msg/bounding_box2_d_array.hpp>
+#include <vision_msgs/msg/detection2_d_array.hpp>
+#include "sky360_interfaces/msg/tracking_state.hpp"
+//#include "sky360_interfaces/msg/track_trajectory.hpp"
+#include "sky360_interfaces/msg/track_trajectory_array.hpp"
+
+class TrackProvider 
+    : public rclcpp::Node
+    //, public std::enable_shared_from_this<TrackProvider>
+{
+public:
+    static std::shared_ptr<TrackProvider> Create()
+    {
+        auto result = std::shared_ptr<TrackProvider>(new TrackProvider());
+        result->init();
+        return result;
+    }
+
+private:
+    TrackProvider() 
+        : Node("frame_provider_node")
+    {
+    }
+
+    void init()
+    {
+        masked_frame_subscription_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(this->shared_from_this(), "sky360/frames/masked");
+        detector_bounding_boxes_subscription_ = std::make_shared<message_filters::Subscriber<vision_msgs::msg::BoundingBox2DArray>>(this->shared_from_this(), "sky360/detector/bgs/bounding_boxes");
+
+        time_synchronizer_ = std::make_shared<message_filters::TimeSynchronizer<sensor_msgs::msg::Image, vision_msgs::msg::BoundingBox2DArray>>(*masked_frame_subscription_, *detector_bounding_boxes_subscription_, 10);
+        time_synchronizer_->registerCallback(&TrackProvider::callback, this);
+
+        pub_tracker_tracking_state = create_publisher<sky360_interfaces::msg::TrackingState>("sky360/tracker/tracking_state", 10);
+        pub_tracker_detects = create_publisher<vision_msgs::msg::Detection2DArray>("sky360/tracker/detections", 10);
+        pub_tracker_trajectory = create_publisher<sky360_interfaces::msg::TrackTrajectoryArray>("sky360/tracker/trajectory", 10);
+        pub_tracker_prediction = create_publisher<sky360_interfaces::msg::TrackTrajectoryArray>("sky360/tracker/prediction", 10);
+    }
+
+    void callback(const sensor_msgs::msg::Image::SharedPtr& image_msg, const vision_msgs::msg::BoundingBox2DArray::SharedPtr& bounding_boxes_msg)
+    {
+        try
+        {
+            auto start = std::chrono::high_resolution_clock::now();
+            //RCLCPP_INFO(get_logger(), "Processing");
+
+            cv_bridge::CvImagePtr masked_img_bridge = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::BGR8);
+
+            std::vector<cv::Rect> bboxes;
+            for (const auto &bbox2D : bounding_boxes_msg->boxes)
+            {
+                bboxes.push_back(cv::Rect(bbox2D.center.position.x - bbox2D.size_x / 2, bbox2D.center.position.y - bbox2D.size_y / 2, bbox2D.size_x, bbox2D.size_y));
+            }
+
+            // self.video_tracker.update_trackers(bboxes, frame)
+
+            publish_detect_array(image_msg->header);
+            publish_trajectory_array(image_msg->header);
+            publish_prediction_array(image_msg->header);
+            publish_tracking_state(image_msg->header);
+
+            auto end = std::chrono::high_resolution_clock::now();
+            duration_total += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() / 1.0e9;
+            ++frames;
+            if (duration_total > 3.0)
+            {
+                RCLCPP_INFO(get_logger(), "%f fps", frames / duration_total);
+                duration_total = 0.0;
+                frames = 0.0;
+            }
+        }
+        catch (cv_bridge::Exception &e)
+        {
+            RCLCPP_ERROR(this->get_logger(), "CV bridge exception: %s", e.what());
+        }
+    }
+
+    void publish_detect_array(std_msgs::msg::Header &header)
+    {
+        vision_msgs::msg::Detection2DArray detection_array_msg;
+        detection_array_msg.header = header;
+        // detect_array_msg.detections = [self._detects_to_msg(tracker) for tracker in self.video_tracker.live_trackers]
+        pub_tracker_detects->publish(detection_array_msg);
+    }
+
+    void publish_trajectory_array(std_msgs::msg::Header &header)
+    {
+        sky360_interfaces::msg::TrackTrajectoryArray trajectory_array_msg;
+        trajectory_array_msg.header = header;
+        // trajectory_array_msg.trajectories = [self._trajectories_to_msg(tracker) for tracker in self.video_tracker.live_trackers]
+        pub_tracker_trajectory->publish(trajectory_array_msg);
+    }
+
+    void publish_prediction_array(std_msgs::msg::Header &header)
+    {
+        sky360_interfaces::msg::TrackTrajectoryArray prediction_array_msg;
+        prediction_array_msg.header = header;
+        // prediction_array_msg.trajectories = [self._predictions_to_msg(tracker) for tracker in self.video_tracker.live_trackers]
+        pub_tracker_prediction->publish(prediction_array_msg);
+    }
+
+    void publish_tracking_state(std_msgs::msg::Header &header)
+    {
+        sky360_interfaces::msg::TrackingState tracking_state_msg;
+        tracking_state_msg.header = header;
+        // tracking_msg.trackable = sum(map(lambda x: x.is_tracking(), self.video_tracker.live_trackers))
+        // tracking_msg.alive = len(self.video_tracker.live_trackers)
+        // tracking_msg.started = self.video_tracker.total_trackers_started
+        // tracking_msg.ended = self.video_tracker.total_trackers_finished
+        pub_tracker_tracking_state->publish(tracking_state_msg);
+    }
+
+    std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::Image>> masked_frame_subscription_;
+    std::shared_ptr<message_filters::Subscriber<vision_msgs::msg::BoundingBox2DArray>> detector_bounding_boxes_subscription_;
+    std::shared_ptr<message_filters::TimeSynchronizer<sensor_msgs::msg::Image, vision_msgs::msg::BoundingBox2DArray>> time_synchronizer_;
+
+    rclcpp::Publisher<sky360_interfaces::msg::TrackingState>::SharedPtr pub_tracker_tracking_state;
+    rclcpp::Publisher<vision_msgs::msg::Detection2DArray>::SharedPtr pub_tracker_detects;
+    rclcpp::Publisher<sky360_interfaces::msg::TrackTrajectoryArray>::SharedPtr pub_tracker_trajectory;
+    rclcpp::Publisher<sky360_interfaces::msg::TrackTrajectoryArray>::SharedPtr pub_tracker_prediction;
+
+    double duration_total = 0.0;
+    double frames = 0.0;
+
+    friend std::shared_ptr<TrackProvider> std::make_shared<TrackProvider>();
+};
+
+int main(int argc, char **argv)
+{
+    rclcpp::init(argc, argv);
+    auto trackProvider = TrackProvider::Create();
+    rclcpp::spin(trackProvider);
+    rclcpp::shutdown();
+    return 0;
+}

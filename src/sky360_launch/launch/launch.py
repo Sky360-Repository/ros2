@@ -27,4 +27,10 @@ def generate_launch_description():
             name='background_subtractor_detector_node',
             output='screen'
         ),
+        Node(
+            package='sky360_tracking',
+            executable='track_provider_node',
+            name='track_provider_node',
+            output='screen'
+        ),
     ])

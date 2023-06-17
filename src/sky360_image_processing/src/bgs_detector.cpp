@@ -1,15 +1,13 @@
 #include <opencv2/opencv.hpp>
-#include "rclcpp/rclcpp.hpp"
-#include "sensor_msgs/msg/image.hpp"
-#include "vision_msgs/msg/bounding_box2_d_array.hpp"
-#include "cv_bridge/cv_bridge.h"
-#include "rcl_interfaces/msg/parameter_event.hpp"
-#include "sky360lib/api/blobs/connectedBlobDetection.hpp"
 
 #include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/image.hpp>
-#include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
+
+#include <sensor_msgs/msg/image.hpp>
+#include <vision_msgs/msg/bounding_box2_d_array.hpp>
+#include <rcl_interfaces/msg/parameter_event.hpp>
+
+#include <sky360lib/api/blobs/connectedBlobDetection.hpp>
 
 class BackgroundSubtractorDetector
     : public rclcpp::Node
@@ -18,12 +16,9 @@ public:
     BackgroundSubtractorDetector()
         : Node("background_subtractor_detector_node")
     {
-        // Subscribe to the input image topic
-        image_subscription_ = create_subscription<sensor_msgs::msg::Image>(
-            "sky360/frames/foreground_mask", rclcpp::QoS(10),
+        image_subscription_ = create_subscription<sensor_msgs::msg::Image>("sky360/frames/foreground_mask", rclcpp::QoS(10),
             std::bind(&BackgroundSubtractorDetector::imageCallback, this, std::placeholders::_1));
 
-        // Publish the manipulated image
         detection_publisher_ = create_publisher<vision_msgs::msg::BoundingBox2DArray>("sky360/detector/bgs/bounding_boxes", rclcpp::QoS(10));
     }
 
@@ -40,22 +35,10 @@ private:
             {
                 vision_msgs::msg::BoundingBox2DArray bbox2D_array;
                 bbox2D_array.header = msg->header;
-
-                for (const auto &bbox : bboxes)
-                {
-                    vision_msgs::msg::BoundingBox2D bbox2D;
-                    bbox2D.center.position.x = bbox.x + bbox.width / 2.0;
-                    bbox2D.center.position.y = bbox.y + bbox.height / 2.0;
-                    bbox2D.size_x = bbox.width;
-                    bbox2D.size_y = bbox.height;
-                    bbox2D_array.boxes.push_back(bbox2D);
-                }
+                convert_bboxes(bbox2D_array, bboxes);
 
                 detection_publisher_->publish(bbox2D_array);
             }
-
-            // auto image_msg = cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::MONO8, mask).toImageMsg();
-            // image_publisher_->publish(*image_msg);
 
             auto end = std::chrono::high_resolution_clock::now();
             duration_total += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() / 1.0e9;
@@ -70,6 +53,19 @@ private:
         catch (cv_bridge::Exception &e)
         {
             RCLCPP_ERROR(this->get_logger(), "CV bridge exception: %s", e.what());
+        }
+    }
+
+    void convert_bboxes(vision_msgs::msg::BoundingBox2DArray& bbox2D_array, std::vector<cv::Rect>& bboxes)
+    {
+        for (const auto &bbox : bboxes)
+        {
+            vision_msgs::msg::BoundingBox2D bbox2D;
+            bbox2D.center.position.x = bbox.x + bbox.width / 2.0;
+            bbox2D.center.position.y = bbox.y + bbox.height / 2.0;
+            bbox2D.size_x = bbox.width;
+            bbox2D.size_y = bbox.height;
+            bbox2D_array.boxes.push_back(bbox2D);
         }
     }
 
