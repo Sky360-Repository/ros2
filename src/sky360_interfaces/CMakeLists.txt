@@ -40,6 +40,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/TrackPoint.msg"
   "msg/TrackTrajectory.msg"
   "msg/TrackTrajectoryArray.msg"
+  "msg/TrackDetection.msg"
   "msg/TrackDetectionArray.msg"
   "srv/ConfigEntryUpdate.srv"
   "srv/ConfigEntry.srv"

@@ -33,4 +33,10 @@ def generate_launch_description():
             name='track_provider_node',
             output='screen'
         ),
+        Node(
+            package='sky360_visualizers',
+            executable='annotated_frame_provider_node',
+            name='annotated_frame_provider_node',
+            output='screen'
+        ),
     ])

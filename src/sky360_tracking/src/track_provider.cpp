@@ -7,7 +7,8 @@
 
 #include <sensor_msgs/msg/image.hpp>
 #include <vision_msgs/msg/bounding_box2_d_array.hpp>
-#include <vision_msgs/msg/detection2_d_array.hpp>
+//#include <vision_msgs/msg/detection2_d_array.hpp>
+#include "sky360_interfaces/msg/track_detection_array.hpp"
 #include "sky360_interfaces/msg/tracking_state.hpp"
 #include "sky360_interfaces/msg/track_trajectory_array.hpp"
 
@@ -40,7 +41,7 @@ private:
         time_synchronizer_->registerCallback(&TrackProvider::callback, this);
 
         pub_tracker_tracking_state = create_publisher<sky360_interfaces::msg::TrackingState>("sky360/tracker/tracking_state", 10);
-        pub_tracker_detects = create_publisher<vision_msgs::msg::Detection2DArray>("sky360/tracker/detections", 10);
+        pub_tracker_detects = create_publisher<sky360_interfaces::msg::TrackDetectionArray>("sky360/tracker/detections", 10);
         pub_tracker_trajectory = create_publisher<sky360_interfaces::msg::TrackTrajectoryArray>("sky360/tracker/trajectory", 10);
         pub_tracker_prediction = create_publisher<sky360_interfaces::msg::TrackTrajectoryArray>("sky360/tracker/prediction", 10);
     }
@@ -84,7 +85,7 @@ private:
 
     void publish_detect_array(std_msgs::msg::Header &header)
     {
-        vision_msgs::msg::Detection2DArray detection_array_msg;
+        sky360_interfaces::msg::TrackDetectionArray detection_array_msg;
         detection_array_msg.header = header;
         for(const auto& tracker : video_tracker_.get_live_trackers())
         {
@@ -126,7 +127,7 @@ private:
         pub_tracker_tracking_state->publish(tracking_state_msg);
     }
 
-    void add_detects_to_msg(const Tracker& tracker, vision_msgs::msg::Detection2DArray& detection_2d_array_msg)
+    void add_detects_to_msg(const Tracker& tracker, sky360_interfaces::msg::TrackDetectionArray& detection_2d_array_msg)
     {
         auto bbox = tracker.get_bbox();
         vision_msgs::msg::BoundingBox2D bbox_msg;
@@ -135,8 +136,9 @@ private:
         bbox_msg.size_x = bbox.width;
         bbox_msg.size_y = bbox.height;   
 
-        vision_msgs::msg::Detection2D detect_msg;
-        detect_msg.id = std::to_string(tracker.get_id()) + std::string("-") + std::to_string(tracker.get_tracking_state());
+        sky360_interfaces::msg::TrackDetection detect_msg;
+        detect_msg.id = tracker.get_id();
+        detect_msg.state = (int)tracker.get_tracking_state();
         detect_msg.bbox = bbox_msg;
 
         detection_2d_array_msg.detections.push_back(detect_msg);
@@ -180,7 +182,7 @@ private:
     std::shared_ptr<message_filters::TimeSynchronizer<sensor_msgs::msg::Image, vision_msgs::msg::BoundingBox2DArray>> time_synchronizer_;
 
     rclcpp::Publisher<sky360_interfaces::msg::TrackingState>::SharedPtr pub_tracker_tracking_state;
-    rclcpp::Publisher<vision_msgs::msg::Detection2DArray>::SharedPtr pub_tracker_detects;
+    rclcpp::Publisher<sky360_interfaces::msg::TrackDetectionArray>::SharedPtr pub_tracker_detects;
     rclcpp::Publisher<sky360_interfaces::msg::TrackTrajectoryArray>::SharedPtr pub_tracker_trajectory;
     rclcpp::Publisher<sky360_interfaces::msg::TrackTrajectoryArray>::SharedPtr pub_tracker_prediction;
 

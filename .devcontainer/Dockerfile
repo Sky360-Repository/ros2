@@ -3,7 +3,7 @@ FROM sky360/ros2-humble-dev:latest
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Removing this ros dependencies as they use old OpenCV
-RUN apt-get -y ros-humble-rqt*
+RUN apt-get update && apt-get -y install ros-humble-rqt* ros-humble-rqt-image-view
 RUN apt-get -y remove ros-humble-vision-opencv ros-humble-cv-bridge
 
 # Building new ros-humble-vision-opencv

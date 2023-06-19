@@ -12,11 +12,8 @@
 #include <rclcpp/rclcpp.hpp>
 #include <cv_bridge/cv_bridge.hpp>
 
-#include <vision_msgs/msg/bounding_box2_d.hpp>
-#include <vision_msgs/msg/detection2_d_array.hpp>
-#include <vision_msgs/msg/bounding_box2_d_array.hpp>
-#include <vision_msgs/msg/detection2_d_array.hpp>
 #include "sky360_interfaces/msg/tracking_state.hpp"
+#include "sky360_interfaces/msg/track_detection_array.hpp"
 #include "sky360_interfaces/msg/track_trajectory_array.hpp"
 
 #include "../../sky360_shared/include/tracking_state.hpp"
@@ -45,19 +42,19 @@ public:
           fontScale(1)
     {
         bbox_line_thickness = 1; //(settings["visualiser_bbox_line_thickness"]),
-        frame_type = "";         //(settings["visualiser_frame_source"]),
+        frame_type = "masked";         //(settings["visualiser_frame_source"]),
     }
 
     cv::Mat create_frame(const cv::Mat& annotated_frame,
                          const sky360_interfaces::msg::TrackingState& msg_tracking_state,
-                         const vision_msgs::msg::Detection2DArray& msg_detection_array,
+                         const sky360_interfaces::msg::TrackDetectionArray& msg_detection_array,
                          const sky360_interfaces::msg::TrackTrajectoryArray& msg_trajectory_array,
                          const sky360_interfaces::msg::TrackTrajectoryArray& msg_prediction_array)
     {
         int cropped_track_counter = 0;
         bool enable_cropped_tracks = true; // settings.at("visualiser_show_cropped_tracks");
-        double zoom_factor = 1.0;          // settings.at("visualiser_cropped_zoom_factor");
-        std::map<std::string, cv::Rect> detections;
+        double zoom_factor = 2.0;          // settings.at("visualiser_cropped_zoom_factor");
+        std::map<int, cv::Rect> detections;
         std::map<std::string, sky360_interfaces::msg::TrackPoint> final_trajectory_points;
 
         cv::Size frame_size = annotated_frame.size();
@@ -81,11 +78,8 @@ public:
 
         for (const auto &detection : msg_detection_array.detections)
         {
-            std::vector<std::string> id_arr = split(detection.id, '-');
-
-            std::string id = id_arr[0];
-            TrackingStateEnum tracking_state =
-                static_cast<TrackingStateEnum>(std::stoi(id_arr[1]));
+            auto id = detection.id;
+            TrackingStateEnum tracking_state = TrackingStateEnum(detection.state);
 
             cv::Rect bbox = get_sized_bbox(detection.bbox);
             detections[detection.id] = bbox;
@@ -93,7 +87,7 @@ public:
             cv::Point p2(bbox.x + bbox.width, bbox.y + bbox.height);
             cv::Scalar color = _color(tracking_state);
             cv::rectangle(annotated_frame, p1, p2, color, bbox_line_thickness, 1);
-            cv::putText(annotated_frame, id, cv::Point(p1.x, p1.y - 4), cv::FONT_HERSHEY_SIMPLEX, fontScale, color, 2);
+            cv::putText(annotated_frame, std::to_string(id), cv::Point(p1.x, p1.y - 4), cv::FONT_HERSHEY_SIMPLEX, fontScale, color, 2);
             if (enable_cropped_tracks && tracking_state == TrackingStateEnum::ActiveTarget)
             {
                 int margin = (cropped_track_counter == 0) ? 0 : 10;
@@ -164,18 +158,6 @@ public:
         return annotated_frame;
     }
 
-    std::vector<std::string> split(const std::string &str, char delimiter)
-    {
-        std::vector<std::string> tokens;
-        std::string token;
-        std::istringstream tokenStream(str);
-        while (std::getline(tokenStream, token, delimiter))
-        {
-            tokens.push_back(token);
-        }
-        return tokens;
-    }
-
     double get_optimal_font_scale(const std::string &text, int width)
     {
         const int fontFace = cv::FONT_HERSHEY_SIMPLEX;
@@ -215,15 +197,6 @@ public:
         int x1 = x + (w / 2) - (size / 2);
         int y1 = y + (h / 2) - (size / 2);
         return {x1, y1, size, size};
-    }
-
-    bool is_point_contained_in_bbox(std::tuple<int, int, int, int> bbox, std::tuple<int, int> point)
-    {
-        int x, y, w, h;
-        std::tie(x, y, w, h) = bbox;
-        int x0, y0;
-        std::tie(x0, y0) = point;
-        return x <= x0 && x0 < x + w && y <= y0 && y0 < y + h;
     }
 
     cv::Scalar _color(TrackingStateEnum tracking_state)

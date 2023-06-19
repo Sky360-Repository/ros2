@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format2.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="2">
-    <name>sky360_vizualizers</name>
+    <name>sky360_visualizers</name>
     <version>0.0.1</version>
     <description>ROS2 Package Helpers for visualizing</description>
     <maintainer email="you@example.com">Your Name</maintainer>
