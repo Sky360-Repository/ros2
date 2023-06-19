@@ -11,12 +11,7 @@
 
 #include "track_prediction.hpp"
 
-enum TrackingStateEnum
-{
-    ProvisionaryTarget = 1,
-    ActiveTarget = 2,
-    LostTarget = 3
-};
+#include "../../sky360_shared/include/tracking_state.hpp"
 
 class Tracker
 {

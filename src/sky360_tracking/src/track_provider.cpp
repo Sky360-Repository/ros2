@@ -175,18 +175,6 @@ private:
         prediction_array_msg.trajectories.push_back(track_msg);
     }
 
-    // track_msg = TrackTrajectory()
-    // track_msg.id = f'{tracker.id}-{tracker.tracking_state}'
-
-    // for center_point in tracker.predictor_center_points:
-    //   (x,y) = center_point
-    //   point = TrackPoint()
-    //   point.center.x = float(x)
-    //   point.center.y = float(y)
-    //   track_msg.trajectory.append(point)
-
-    // return track_msg
-
     std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::Image>> masked_frame_subscription_;
     std::shared_ptr<message_filters::Subscriber<vision_msgs::msg::BoundingBox2DArray>> detector_bounding_boxes_subscription_;
     std::shared_ptr<message_filters::TimeSynchronizer<sensor_msgs::msg::Image, vision_msgs::msg::BoundingBox2DArray>> time_synchronizer_;
