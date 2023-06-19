@@ -6,7 +6,7 @@
 #include <opencv2/opencv.hpp>
 
 #include <rclcpp/rclcpp.hpp>
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 
 #include <sensor_msgs/msg/image.hpp>
 #include <rcl_interfaces/msg/parameter_event.hpp>
@@ -119,11 +119,11 @@ private:
         qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Exposure, 20000.0);
         qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Gain, 5.0);
 
-        uint32_t x = ((uint32_t)qhy_camera_.get_camera_info()->chip.max_image_width - (uint32_t)qhy_camera_.get_camera_info()->chip.max_image_height) / 2;
-        uint32_t y = 0;
-        uint32_t width = qhy_camera_.get_camera_info()->chip.max_image_height;
-        uint32_t height = qhy_camera_.get_camera_info()->chip.max_image_height;
-        qhy_camera_.set_resolution(x, y, width, height);
+        // uint32_t x = ((uint32_t)qhy_camera_.get_camera_info()->chip.max_image_width - (uint32_t)qhy_camera_.get_camera_info()->chip.max_image_height) / 2;
+        // uint32_t y = 0;
+        // uint32_t width = qhy_camera_.get_camera_info()->chip.max_image_height;
+        // uint32_t height = qhy_camera_.get_camera_info()->chip.max_image_height;
+        // qhy_camera_.set_resolution(x, y, width, height);
     }
 
     inline void apply_auto_exposure(const cv::Mat &image, sky360lib::camera::QhyCamera::CameraParams &camera_params)

@@ -1,11 +1,20 @@
 FROM sky360/ros2-humble-dev:latest
-#FROM sky360/ros2-humble-cuda-dev:1.0.1
-# ** [Optional] Uncomment this section to install additional packages. **
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Removing this ros dependencies as they use old OpenCV
+RUN apt-get -y ros-humble-rqt*
+RUN apt-get -y remove ros-humble-vision-opencv ros-humble-cv-bridge
+
+# Building new ros-humble-vision-opencv
+RUN mkdir -p /opt/ros2_ws/src
+WORKDIR /opt/ros2_ws
+RUN git clone https://github.com/ros-perception/vision_opencv.git
+RUN rosdep update && rosdep install --from-paths src --ignore-src --rosdistro humble -y
+RUN colcon build
+# RUN source install/setup.bash
+
 RUN apt-get update \
-    # && apt-get -y install ros-humble-vision-opencv ros-humble-cv-bridge \
    && apt-get -y install --no-install-recommends python3-numpy libboost-python-dev \
    # Install colcon build tools
    && apt-get install -y --no-install-recommends python3-colcon-common-extensions \
