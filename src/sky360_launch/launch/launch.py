@@ -21,12 +21,13 @@ def generate_launch_description():
             name='background_subtractor_node',
             output='screen'
         ),
-        Node(
-            package='sky360_image_processing',
-            executable='background_subtractor_detector_node',
-            name='background_subtractor_detector_node',
-            output='screen'
-        ),
+        # The detection moved to the background subtractor directly
+        # Node(
+        #     package='sky360_image_processing',
+        #     executable='background_subtractor_detector_node',
+        #     name='background_subtractor_detector_node',
+        #     output='screen'
+        # ),
         Node(
             package='sky360_tracking',
             executable='track_provider_node',

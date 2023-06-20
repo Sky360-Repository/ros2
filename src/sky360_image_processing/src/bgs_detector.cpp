@@ -16,10 +16,10 @@ public:
     BackgroundSubtractorDetector()
         : Node("background_subtractor_detector_node")
     {
-        image_subscription_ = create_subscription<sensor_msgs::msg::Image>("sky360/frames/foreground_mask", rclcpp::QoS(10),
+        image_subscription_ = create_subscription<sensor_msgs::msg::Image>("sky360/frames/all_sky/foreground_mask", rclcpp::QoS(10),
             std::bind(&BackgroundSubtractorDetector::imageCallback, this, std::placeholders::_1));
 
-        detection_publisher_ = create_publisher<vision_msgs::msg::BoundingBox2DArray>("sky360/detector/bgs/bounding_boxes", rclcpp::QoS(10));
+        detection_publisher_ = create_publisher<vision_msgs::msg::BoundingBox2DArray>("sky360/detector/all_sky/bounding_boxes", rclcpp::QoS(10));
     }
 
 private:

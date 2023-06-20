@@ -60,8 +60,10 @@ public:
             header.frame_id = boost::uuids::to_string(uuid_generator_());
 
             auto image_info_msg = generate_image_info(header, camera_params, camera_info);
+
             publish_image(image, header, image_info_msg);
-            // publish_image_info(header, camera_params, camera_info);
+
+            image_info_publisher_->publish(image_info_msg);
             publish_camera_info(header);
 
             auto end = std::chrono::high_resolution_clock::now();

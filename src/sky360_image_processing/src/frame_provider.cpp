@@ -21,11 +21,9 @@ public:
         image_subscription_ = create_subscription<sky360_camera::msg::BayerImage>("sky360/camera/all_sky/bayer", rclcpp::QoS(10),
             std::bind(&FrameProvider::imageCallback, this, std::placeholders::_1));
 
-        // image_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/original", rclcpp::QoS(10));
-        // camera_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/camera/original", rclcpp::QoS(10));
-        gray_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/grey", rclcpp::QoS(10));
-        masked_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/masked", rclcpp::QoS(10));
-        image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/camera/all_sky/image_info", rclcpp::QoS(10));
+        gray_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/all_sky/gray", rclcpp::QoS(10));
+        masked_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/all_sky/masked", rclcpp::QoS(10));
+        image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/frames/all_sky/image_info", rclcpp::QoS(10));
     }
 
 private:
@@ -41,11 +39,14 @@ private:
             debayer_image(bayer_img_bridge->image, debayered_img, msg->info.bayer_format);
 
             cv::Mat color_img;
-            if (true)
+            uint32_t frame_width = debayered_img.size().width;
+            uint32_t frame_height = debayered_img.size().height;
+            if (true) // Resize frame
             {
                 double aspect_ratio = (double)bayer_img_bridge->image.size().width / (double)bayer_img_bridge->image.size().height;
-                uint32_t width = (uint32_t)(aspect_ratio * 960.0);
-                cv::resize(debayered_img, color_img, cv::Size(width, 960));
+                frame_height = 960;
+                frame_width = ((uint32_t)(aspect_ratio * (double)frame_height)) & 0xFFFFFFFE;
+                cv::resize(debayered_img, color_img, cv::Size(frame_width, frame_height));
             }
             else
             {
@@ -54,10 +55,13 @@ private:
 
             auto color_image_msg = cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::BGR8, color_img).toImageMsg();
             masked_publisher_->publish(*color_image_msg);
-            // image_publisher_->publish(*color_image_msg);
-            // camera_publisher_->publish(*color_image_msg);
 
-            image_info_publisher_->publish(msg->info);
+            sky360_camera::msg::ImageInfo frame_info_msg = msg->info;
+            frame_info_msg.roi.start_x = 0;
+            frame_info_msg.roi.start_y = 0;
+            frame_info_msg.roi.width = frame_width;
+            frame_info_msg.roi.height = frame_height;
+            image_info_publisher_->publish(frame_info_msg);
 
             cv::Mat gray_img;
             cv::cvtColor(color_img, gray_img, cv::COLOR_BGR2GRAY);
@@ -102,8 +106,6 @@ private:
     }
 
     rclcpp::Subscription<sky360_camera::msg::BayerImage>::SharedPtr image_subscription_;
-    // rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_publisher_;
-    // rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr camera_publisher_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr gray_publisher_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr masked_publisher_;
     rclcpp::Publisher<sky360_camera::msg::ImageInfo>::SharedPtr image_info_publisher_;

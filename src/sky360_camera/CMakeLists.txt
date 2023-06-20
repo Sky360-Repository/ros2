@@ -41,6 +41,13 @@ set(msg_files
 rosidl_generate_interfaces(${PROJECT_NAME} ${msg_files} DEPENDENCIES builtin_interfaces std_msgs sensor_msgs)
 
 ament_export_dependencies(rosidl_default_runtime)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_definitions(-O3)
+    add_definitions(-march=native)
+    add_definitions(-Wno-deprecated)
+    add_definitions(-Wno-missing-braces)
+ENDIF()
 # End package definition
 
 # All Sky Publisher Node

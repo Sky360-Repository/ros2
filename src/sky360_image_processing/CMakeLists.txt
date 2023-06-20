@@ -28,22 +28,29 @@ include_directories(
   ${OpenCV_INCLUDE_DIRS}
 )
 
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_definitions(-O3)
+    add_definitions(-march=native)
+    add_definitions(-Wno-deprecated)
+    add_definitions(-Wno-missing-braces)
+ENDIF()
+
 # Frame Provider Node
 add_executable(frame_provider_node src/frame_provider.cpp)
 target_link_libraries(frame_provider_node PUBLIC sky360lib)
 ament_target_dependencies(frame_provider_node PUBLIC rclcpp sensor_msgs cv_bridge OpenCV sky360_camera)
 install(TARGETS frame_provider_node DESTINATION lib/${PROJECT_NAME})
 
-# Frame Provider Node
+# Background Subtractor Node
 add_executable(background_subtractor_node src/background_subtractor.cpp)
 target_link_libraries(background_subtractor_node PUBLIC sky360lib)
-ament_target_dependencies(background_subtractor_node PUBLIC rclcpp sensor_msgs cv_bridge OpenCV)
+ament_target_dependencies(background_subtractor_node PUBLIC rclcpp sensor_msgs vision_msgs cv_bridge OpenCV)
 install(TARGETS background_subtractor_node DESTINATION lib/${PROJECT_NAME})
 
-# Background Subtractor Detector Node
-add_executable(background_subtractor_detector_node src/bgs_detector.cpp)
-target_link_libraries(background_subtractor_detector_node PUBLIC sky360lib)
-ament_target_dependencies(background_subtractor_detector_node PUBLIC rclcpp sensor_msgs vision_msgs cv_bridge OpenCV)
-install(TARGETS background_subtractor_detector_node DESTINATION lib/${PROJECT_NAME})
+# # Background Subtractor Detector Node (Code moved to BGS above)
+# add_executable(background_subtractor_detector_node src/bgs_detector.cpp)
+# target_link_libraries(background_subtractor_detector_node PUBLIC sky360lib)
+# ament_target_dependencies(background_subtractor_detector_node PUBLIC rclcpp sensor_msgs vision_msgs cv_bridge OpenCV)
+# install(TARGETS background_subtractor_detector_node DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

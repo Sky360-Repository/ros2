@@ -29,6 +29,13 @@ include_directories(
   ${OpenCV_INCLUDE_DIRS}
 )
 
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_definitions(-O3)
+    add_definitions(-march=native)
+    add_definitions(-Wno-deprecated)
+    add_definitions(-Wno-missing-braces)
+ENDIF()
+
 # Frame Provider Node
 add_executable(track_provider_node src/track_provider.cpp)
 target_link_libraries(track_provider_node PUBLIC sky360lib)

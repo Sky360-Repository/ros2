@@ -34,7 +34,7 @@ private:
     {
         pub_annotated_frame_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/annotated", rclcpp::QoS(10));
 
-        sub_masked_frame = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(this->shared_from_this(), "sky360/frames/masked");
+        sub_masked_frame = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(this->shared_from_this(), "sky360/frames/all_sky/masked");
         sub_tracking_state = std::make_shared<message_filters::Subscriber<sky360_interfaces::msg::TrackingState>>(this->shared_from_this(), "sky360/tracker/tracking_state");
         sub_tracker_detections = std::make_shared<message_filters::Subscriber<sky360_interfaces::msg::TrackDetectionArray>>(this->shared_from_this(), "sky360/tracker/detections");
         sub_tracker_trajectory = std::make_shared<message_filters::Subscriber<sky360_interfaces::msg::TrackTrajectoryArray>>(this->shared_from_this(), "sky360/tracker/trajectory");

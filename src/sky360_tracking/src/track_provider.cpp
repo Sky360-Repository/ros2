@@ -7,7 +7,6 @@
 
 #include <sensor_msgs/msg/image.hpp>
 #include <vision_msgs/msg/bounding_box2_d_array.hpp>
-//#include <vision_msgs/msg/detection2_d_array.hpp>
 #include "sky360_interfaces/msg/track_detection_array.hpp"
 #include "sky360_interfaces/msg/tracking_state.hpp"
 #include "sky360_interfaces/msg/track_trajectory_array.hpp"
@@ -34,8 +33,8 @@ private:
 
     void init()
     {
-        masked_frame_subscription_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(this->shared_from_this(), "sky360/frames/masked");
-        detector_bounding_boxes_subscription_ = std::make_shared<message_filters::Subscriber<vision_msgs::msg::BoundingBox2DArray>>(this->shared_from_this(), "sky360/detector/bgs/bounding_boxes");
+        masked_frame_subscription_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(this->shared_from_this(), "sky360/frames/all_sky/masked");
+        detector_bounding_boxes_subscription_ = std::make_shared<message_filters::Subscriber<vision_msgs::msg::BoundingBox2DArray>>(this->shared_from_this(), "sky360/detector/all_sky/bounding_boxes");
 
         time_synchronizer_ = std::make_shared<message_filters::TimeSynchronizer<sensor_msgs::msg::Image, vision_msgs::msg::BoundingBox2DArray>>(*masked_frame_subscription_, *detector_bounding_boxes_subscription_, 10);
         time_synchronizer_->registerCallback(&TrackProvider::callback, this);
