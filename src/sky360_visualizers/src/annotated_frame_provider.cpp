@@ -55,7 +55,7 @@ private:
         {
             auto start = std::chrono::high_resolution_clock::now();
 
-            cv_bridge::CvImagePtr masked_img_bridge = cv_bridge::toCvCopy(masked_image_msg, sensor_msgs::image_encodings::BGR8);
+            cv_bridge::CvImagePtr masked_img_bridge = cv_bridge::toCvCopy(masked_image_msg, masked_image_msg->encoding);
 
             auto annotated_frame = annotated_frame_creator_.create_frame(masked_img_bridge->image, *tracking_state_msg, *detections_msg, *trajectory_msg, *prediction_msg);
 

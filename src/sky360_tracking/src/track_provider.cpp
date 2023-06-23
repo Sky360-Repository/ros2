@@ -1,5 +1,7 @@
 #include <opencv2/opencv.hpp>
 
+#include <chrono>
+
 #include <rclcpp/rclcpp.hpp>
 #include <cv_bridge/cv_bridge.hpp>
 #include <message_filters/subscriber.h>
@@ -11,9 +13,10 @@
 #include "sky360_interfaces/msg/tracking_state.hpp"
 #include "sky360_interfaces/msg/track_trajectory_array.hpp"
 
+#include "sky360lib/api/utils/profiler.hpp"
 #include "video_tracker.hpp"
 
-class TrackProvider 
+class TrackProvider
     : public rclcpp::Node
 {
 public:
@@ -25,9 +28,8 @@ public:
     }
 
 private:
-    TrackProvider() 
-        : Node("frame_provider_node")
-        , video_tracker_(std::map<std::string, std::string>(), get_logger())
+    TrackProvider()
+        : Node("frame_provider_node"), video_tracker_(std::map<std::string, std::string>(), get_logger())
     {
     }
 
@@ -45,13 +47,13 @@ private:
         pub_tracker_prediction = create_publisher<sky360_interfaces::msg::TrackTrajectoryArray>("sky360/tracker/prediction", 10);
     }
 
-    void callback(const sensor_msgs::msg::Image::SharedPtr& image_msg, const vision_msgs::msg::BoundingBox2DArray::SharedPtr& bounding_boxes_msg)
+    void callback(const sensor_msgs::msg::Image::SharedPtr &image_msg, const vision_msgs::msg::BoundingBox2DArray::SharedPtr &bounding_boxes_msg)
     {
         try
         {
-            auto start = std::chrono::high_resolution_clock::now();
+            profiler_.start("Frame");
 
-            cv_bridge::CvImagePtr masked_img_bridge = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::BGR8);
+            cv_bridge::CvImagePtr masked_img_bridge = cv_bridge::toCvCopy(image_msg, image_msg->encoding);
 
             std::vector<cv::Rect> bboxes;
             for (const auto &bbox2D : bounding_boxes_msg->boxes)
@@ -66,14 +68,12 @@ private:
             publish_prediction_array(image_msg->header);
             publish_tracking_state(image_msg->header);
 
-            auto end = std::chrono::high_resolution_clock::now();
-            duration_total += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() / 1.0e9;
-            ++frames;
-            if (duration_total > 2.0)
+            profiler_.stop("Frame");
+            if (profiler_.get_data("Frame").duration_in_seconds() > 1.0)
             {
-                RCLCPP_INFO(get_logger(), "%f fps", frames / duration_total);
-                duration_total = 0.0;
-                frames = 0.0;
+                auto report = profiler_.report();
+                RCLCPP_INFO(get_logger(), report.c_str());
+                profiler_.reset();
             }
         }
         catch (cv_bridge::Exception &e)
@@ -86,7 +86,7 @@ private:
     {
         sky360_interfaces::msg::TrackDetectionArray detection_array_msg;
         detection_array_msg.header = header;
-        for(const auto& tracker : video_tracker_.get_live_trackers())
+        for (const auto &tracker : video_tracker_.get_live_trackers())
         {
             add_detects_to_msg(tracker, detection_array_msg);
         }
@@ -97,7 +97,7 @@ private:
     {
         sky360_interfaces::msg::TrackTrajectoryArray trajectory_array_msg;
         trajectory_array_msg.header = header;
-        for(const auto& tracker : video_tracker_.get_live_trackers())
+        for (const auto &tracker : video_tracker_.get_live_trackers())
         {
             add_trajectories_to_msg(tracker, trajectory_array_msg);
         }
@@ -108,7 +108,7 @@ private:
     {
         sky360_interfaces::msg::TrackTrajectoryArray prediction_array_msg;
         prediction_array_msg.header = header;
-        for(const auto& tracker : video_tracker_.get_live_trackers())
+        for (const auto &tracker : video_tracker_.get_live_trackers())
         {
             add_predictions_to_msg(tracker, prediction_array_msg);
         }
@@ -126,14 +126,14 @@ private:
         pub_tracker_tracking_state->publish(tracking_state_msg);
     }
 
-    void add_detects_to_msg(const Tracker& tracker, sky360_interfaces::msg::TrackDetectionArray& detection_2d_array_msg)
+    void add_detects_to_msg(const Tracker &tracker, sky360_interfaces::msg::TrackDetectionArray &detection_2d_array_msg)
     {
         auto bbox = tracker.get_bbox();
         vision_msgs::msg::BoundingBox2D bbox_msg;
         bbox_msg.center.position.x = bbox.x + bbox.width / 2;
         bbox_msg.center.position.y = bbox.y + bbox.height / 2;
         bbox_msg.size_x = bbox.width;
-        bbox_msg.size_y = bbox.height;   
+        bbox_msg.size_y = bbox.height;
 
         sky360_interfaces::msg::TrackDetection detect_msg;
         detect_msg.id = tracker.get_id();
@@ -143,12 +143,12 @@ private:
         detection_2d_array_msg.detections.push_back(detect_msg);
     }
 
-    void add_trajectories_to_msg(const Tracker& tracker, sky360_interfaces::msg::TrackTrajectoryArray& trajectory_array_msg)
+    void add_trajectories_to_msg(const Tracker &tracker, sky360_interfaces::msg::TrackTrajectoryArray &trajectory_array_msg)
     {
         sky360_interfaces::msg::TrackTrajectory track_msg;
         track_msg.id = std::to_string(tracker.get_id()) + std::string("-") + std::to_string(tracker.get_tracking_state());
 
-        for (const auto& center_point : tracker.get_center_points())
+        for (const auto &center_point : tracker.get_center_points())
         {
             sky360_interfaces::msg::TrackPoint point;
             point.center.x = center_point.first.x;
@@ -160,12 +160,12 @@ private:
         trajectory_array_msg.trajectories.push_back(track_msg);
     }
 
-    void add_predictions_to_msg(const Tracker& tracker, sky360_interfaces::msg::TrackTrajectoryArray& prediction_array_msg)
+    void add_predictions_to_msg(const Tracker &tracker, sky360_interfaces::msg::TrackTrajectoryArray &prediction_array_msg)
     {
         sky360_interfaces::msg::TrackTrajectory track_msg;
         track_msg.id = std::to_string(tracker.get_id()) + std::string("-") + std::to_string(tracker.get_tracking_state());
 
-        for (const auto& center_point : tracker.get_predictor_center_points())
+        for (const auto &center_point : tracker.get_predictor_center_points())
         {
             sky360_interfaces::msg::TrackPoint point;
             point.center.x = center_point.x;
@@ -176,6 +176,9 @@ private:
         prediction_array_msg.trajectories.push_back(track_msg);
     }
 
+    using Clock = std::chrono::high_resolution_clock;
+    using TimePoint = std::chrono::time_point<Clock>;
+
     std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::Image>> masked_frame_subscription_;
     std::shared_ptr<message_filters::Subscriber<vision_msgs::msg::BoundingBox2DArray>> detector_bounding_boxes_subscription_;
     std::shared_ptr<message_filters::TimeSynchronizer<sensor_msgs::msg::Image, vision_msgs::msg::BoundingBox2DArray>> time_synchronizer_;
@@ -185,10 +188,8 @@ private:
     rclcpp::Publisher<sky360_interfaces::msg::TrackTrajectoryArray>::SharedPtr pub_tracker_trajectory;
     rclcpp::Publisher<sky360_interfaces::msg::TrackTrajectoryArray>::SharedPtr pub_tracker_prediction;
 
+    sky360lib::utils::Profiler profiler_;
     VideoTracker video_tracker_;
-
-    double duration_total = 0.0;
-    double frames = 0.0;
 
     friend std::shared_ptr<TrackProvider> std::make_shared<TrackProvider>();
 };

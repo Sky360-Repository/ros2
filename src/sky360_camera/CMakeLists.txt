@@ -48,11 +48,12 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
     add_definitions(-Wno-deprecated)
     add_definitions(-Wno-missing-braces)
 ENDIF()
+
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 # End package definition
 
 # All Sky Publisher Node
 add_executable(all_sky_publisher_node src/all_sky_publisher.cpp)
-rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(all_sky_publisher_node PUBLIC sky360lib "${cpp_typesupport_target}")
 ament_target_dependencies(all_sky_publisher_node PUBLIC
     rclcpp 
@@ -62,10 +63,23 @@ ament_target_dependencies(all_sky_publisher_node PUBLIC
     rcl_interfaces 
     OpenCV
     Boost)
-
 install(TARGETS
     all_sky_publisher_node
     DESTINATION lib/${PROJECT_NAME})
-# End All Sky Publisher Node
+
+# Web Camera Publisher Node
+add_executable(web_camera_publisher_node src/web_camera_publisher.cpp)
+target_link_libraries(web_camera_publisher_node PUBLIC sky360lib "${cpp_typesupport_target}")
+ament_target_dependencies(web_camera_publisher_node PUBLIC
+    rclcpp 
+    sensor_msgs 
+    std_msgs
+    cv_bridge
+    rcl_interfaces 
+    OpenCV
+    Boost)
+install(TARGETS
+    web_camera_publisher_node
+    DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

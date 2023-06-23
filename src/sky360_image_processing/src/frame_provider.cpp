@@ -33,28 +33,28 @@ private:
         {
             auto start = std::chrono::high_resolution_clock::now();
 
-            cv_bridge::CvImagePtr bayer_img_bridge = cv_bridge::toCvCopy(msg->image, sensor_msgs::image_encodings::MONO8);
+            cv_bridge::CvImagePtr bayer_img_bridge = cv_bridge::toCvCopy(msg->image, msg->image.encoding);
 
             cv::Mat debayered_img;
             debayer_image(bayer_img_bridge->image, debayered_img, msg->info.bayer_format);
 
-            cv::Mat color_img;
+            cv::Mat the_img;
             uint32_t frame_width = debayered_img.size().width;
             uint32_t frame_height = debayered_img.size().height;
             if (true) // Resize frame
             {
-                double aspect_ratio = (double)bayer_img_bridge->image.size().width / (double)bayer_img_bridge->image.size().height;
+                double aspect_ratio = (double)debayered_img.size().width / (double)debayered_img.size().height;
                 frame_height = 960;
                 frame_width = ((uint32_t)(aspect_ratio * (double)frame_height)) & 0xFFFFFFFE;
-                cv::resize(debayered_img, color_img, cv::Size(frame_width, frame_height));
+                cv::resize(debayered_img, the_img, cv::Size(frame_width, frame_height));
             }
             else
             {
-                color_img = debayered_img;
+                the_img = debayered_img;
             }
 
-            auto color_image_msg = cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::BGR8, color_img).toImageMsg();
-            masked_publisher_->publish(*color_image_msg);
+            auto the_image_msg = cv_bridge::CvImage(msg->header, the_img.channels() == 1 ? sensor_msgs::image_encodings::MONO8 : sensor_msgs::image_encodings::BGR8, the_img).toImageMsg();
+            masked_publisher_->publish(*the_image_msg);
 
             sky360_camera::msg::ImageInfo frame_info_msg = msg->info;
             frame_info_msg.roi.start_x = 0;
@@ -63,10 +63,17 @@ private:
             frame_info_msg.roi.height = frame_height;
             image_info_publisher_->publish(frame_info_msg);
 
-            cv::Mat gray_img;
-            cv::cvtColor(color_img, gray_img, cv::COLOR_BGR2GRAY);
-            auto gray_image_msg = cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::MONO8, gray_img).toImageMsg();
-            gray_publisher_->publish(*gray_image_msg);
+            if (the_img.channels() > 1)
+            {
+                cv::Mat gray_img;
+                cv::cvtColor(the_img, gray_img, cv::COLOR_BGR2GRAY);
+                auto gray_image_msg = cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::MONO8, gray_img).toImageMsg();
+                gray_publisher_->publish(*gray_image_msg);
+            }
+            else
+            {
+                gray_publisher_->publish(*the_image_msg);
+            }
 
             auto end = std::chrono::high_resolution_clock::now();
             duration_total += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() / 1.0e9;
@@ -102,7 +109,15 @@ private:
 
     void debayer_image(const cv::Mat &_image_in, cv::Mat &_image_out, uint32_t _bayerFormat) const
     {
-        cv::cvtColor(_image_in, _image_out, convert_bayer_pattern(_bayerFormat));
+        if (_bayerFormat != sky360_camera::msg::BayerFormat::COLOR 
+            && _bayerFormat != sky360_camera::msg::BayerFormat::MONO)
+        {
+            cv::cvtColor(_image_in, _image_out, convert_bayer_pattern(_bayerFormat));
+        }
+        else
+        {
+            _image_out = _image_in;
+        }
     }
 
     rclcpp::Subscription<sky360_camera::msg::BayerImage>::SharedPtr image_subscription_;

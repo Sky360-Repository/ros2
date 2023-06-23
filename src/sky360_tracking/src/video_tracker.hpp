@@ -47,36 +47,20 @@ public:
         return live_trackers;
     }
 
-    // void create_trackers_from_bboxes(const std::string &tracker_type, const std::vector<cv::Rect> &bboxes, const cv::Mat &frame)
-    // {
-    //     for (const auto &bbox : bboxes)
-    //     {
-    //         if (!is_bbox_being_tracked(live_trackers, bbox))
-    //         {
-    //             create_and_add_tracker(frame, bbox);
-    //         }
-    //     }
-    // }
-
     void create_and_add_tracker(const cv::Mat &frame, const cv::Rect &bbox)
     {
-        if (bbox.area() == 0)
-        {
-            throw std::invalid_argument("null bbox");
-        }
+        total_trackers_started += 1;
 
-        this->total_trackers_started += 1;
-
-        Tracker tracker(settings, this->total_trackers_started, frame, bbox, logger_);
+        Tracker tracker(settings, total_trackers_started, frame, bbox, logger_);
         tracker.update(frame);
-        this->live_trackers.push_back(tracker);
+        live_trackers.push_back(tracker);
     }
 
     void update_trackers(const std::vector<cv::Rect> &bboxes, const cv::Mat &frame)
     {
         std::vector<cv::Rect> unmatched_bboxes = bboxes;
         std::vector<Tracker> failed_trackers;
-        int tracker_count = live_trackers.size();
+        const int tracker_count = live_trackers.size();
 
         std::vector<std::thread> threads(tracker_count);
         std::vector<std::pair<bool, cv::Rect>> results(tracker_count);
