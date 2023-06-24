@@ -97,14 +97,24 @@ private:
 
     void declare_parameters()
     {
-        std::vector<rclcpp::Parameter> parameters = {
-            rclcpp::Parameter("gain", 5),
-            rclcpp::Parameter("exposure", 20000)};
+        declare_parameter<bool>("is_video", false);
+        declare_parameter<int>("camera_id", 0);
+        declare_parameter<std::string>("video_path", "");
     }
 
     inline void open_camera()
     {
-        video_capture_.open(0);
+        auto is_video = get_parameter("is_video").get_value<rclcpp::ParameterType::PARAMETER_BOOL>();
+        if (!is_video)
+        {
+            auto camera_id = get_parameter("camera_id").get_value<rclcpp::ParameterType::PARAMETER_INTEGER>();
+            video_capture_.open(camera_id);
+        }
+        else
+        {
+            auto video_path = get_parameter("video_path").get_value<rclcpp::ParameterType::PARAMETER_STRING>();
+            video_capture_.open(video_path);
+        }
         setHighestResolution(video_capture_);
     }
 

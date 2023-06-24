@@ -7,7 +7,8 @@ def generate_launch_description():
             package='sky360_camera',
             executable='web_camera_publisher_node',
             name='web_camera_publisher_node',
-            output='screen'
+            output='screen',
+            parameters=[{'is_video': False}, {'camera_id': 0}]
         ),
         Node(
             package='sky360_image_processing',
