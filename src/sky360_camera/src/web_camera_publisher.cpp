@@ -16,7 +16,7 @@
 #include "sky360_camera/msg/bayer_image.hpp"
 #include "sky360_camera/msg/bayer_format.hpp"
 
-#include "../../sky360_shared/include/parameter_node.hpp"
+#include "parameter_node.hpp"
 
 class WebCameraPublisher
     : public ParameterNode // rclcpp::Node

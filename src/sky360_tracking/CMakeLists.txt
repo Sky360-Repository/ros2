@@ -25,9 +25,8 @@ find_package(rcl_interfaces REQUIRED)
 find_package(sky360lib REQUIRED)
 find_package(sky360_interfaces REQUIRED)
 
-include_directories(
-  ${OpenCV_INCLUDE_DIRS}
-)
+include_directories(${OpenCV_INCLUDE_DIRS})
+include_directories("../sky360_shared/include")
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     add_definitions(-O3)

@@ -18,7 +18,7 @@
 #include <sky360lib/api/camera/qhy_camera.hpp>
 #include <sky360lib/api/utils/autoExposureControl.hpp>
 
-#include "../../sky360_shared/include/parameter_node.hpp"
+#include "parameter_node.hpp"
 
 class AllSkyPublisher
     : public ParameterNode // rclcpp::Node

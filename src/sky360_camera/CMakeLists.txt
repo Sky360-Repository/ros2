@@ -27,6 +27,7 @@ find_package(sky360lib REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 include_directories(${OpenCV_INCLUDE_DIRS})
+include_directories("../sky360_shared/include")
 
 set(msg_files
     "msg/AreaLimits.msg"
@@ -63,9 +64,7 @@ ament_target_dependencies(all_sky_publisher_node PUBLIC
     rcl_interfaces 
     OpenCV
     Boost)
-install(TARGETS
-    all_sky_publisher_node
-    DESTINATION lib/${PROJECT_NAME})
+install(TARGETS all_sky_publisher_node DESTINATION lib/${PROJECT_NAME})
 
 # Web Camera Publisher Node
 add_executable(web_camera_publisher_node src/web_camera_publisher.cpp)
@@ -78,8 +77,6 @@ ament_target_dependencies(web_camera_publisher_node PUBLIC
     rcl_interfaces 
     OpenCV
     Boost)
-install(TARGETS
-    web_camera_publisher_node
-    DESTINATION lib/${PROJECT_NAME})
+install(TARGETS web_camera_publisher_node DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
