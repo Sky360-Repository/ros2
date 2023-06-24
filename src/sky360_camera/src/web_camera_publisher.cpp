@@ -45,7 +45,11 @@ public:
         {
             auto start = std::chrono::high_resolution_clock::now();
 
-            video_capture_.read(image);
+            if (!video_capture_.read(image) && is_video_)
+            {
+                video_capture_.set(cv::CAP_PROP_POS_FRAMES, 0); // if video ends, loop back to start
+                video_capture_.read(image);
+            }
 
             std_msgs::msg::Header header;
             header.stamp = this->now();
@@ -94,18 +98,20 @@ private:
     cv::VideoCapture video_capture_;
     sky360_camera::msg::CameraInfo camera_info_msg_;
     boost::uuids::random_generator uuid_generator_;
+    bool is_video_;
 
     void declare_parameters()
     {
         declare_parameter<bool>("is_video", false);
         declare_parameter<int>("camera_id", 0);
         declare_parameter<std::string>("video_path", "");
+
+        is_video_ = get_parameter("is_video").get_value<rclcpp::ParameterType::PARAMETER_BOOL>();
     }
 
     inline void open_camera()
     {
-        auto is_video = get_parameter("is_video").get_value<rclcpp::ParameterType::PARAMETER_BOOL>();
-        if (!is_video)
+        if (!is_video_)
         {
             auto camera_id = get_parameter("camera_id").get_value<rclcpp::ParameterType::PARAMETER_INTEGER>();
             video_capture_.open(camera_id);
