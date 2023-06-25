@@ -18,16 +18,18 @@
 
 #include "parameter_node.hpp"
 
+#include "sky360lib/api/utils/profiler.hpp"
+
 class WebCameraPublisher
-    : public ParameterNode // rclcpp::Node
+    : public ParameterNode
 {
 public:
     WebCameraPublisher()
         : ParameterNode("web_camera_publisher_node")
     {
-        image_publisher_ = create_publisher<sky360_camera::msg::BayerImage>("sky360/camera/all_sky/bayer", 10);
-        image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/camera/all_sky/image_info", 10);
-        camera_info_publisher_ = create_publisher<sky360_camera::msg::CameraInfo>("sky360/camera/all_sky/camera_info", 10);
+        image_publisher_ = create_publisher<sky360_camera::msg::BayerImage>("sky360/camera/all_sky/bayer", rclcpp::QoS(10));
+        image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/camera/all_sky/image_info", rclcpp::QoS(10));
+        camera_info_publisher_ = create_publisher<sky360_camera::msg::CameraInfo>("sky360/camera/all_sky/camera_info", rclcpp::QoS(10));
 
         declare_parameters();
     }
@@ -39,11 +41,12 @@ public:
         create_camera_info_msg();
 
         cv::Mat image;
-        double duration_total = 0.0;
-        double frames = 0.0;
         while (rclcpp::ok())
         {
-            auto start = std::chrono::high_resolution_clock::now();
+            if (enable_profiling_)
+            {
+                profiler_.stop("Frame");
+            }
 
             if (!video_capture_.read(image) && is_video_)
             {
@@ -61,65 +64,72 @@ public:
             image_info_publisher_->publish(image_info_msg);
             publish_camera_info(header);
 
-            auto end = std::chrono::high_resolution_clock::now();
-            duration_total += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() / 1.0e9;
-            ++frames;
-            if (duration_total > 3.0)
+            if (enable_profiling_)
             {
-                RCLCPP_INFO(get_logger(), "%f fps", frames / duration_total);
-                duration_total = 0.0;
-                frames = 0.0;
+                profiler_.stop("Frame");
+                if (profiler_.get_data("Frame").duration_in_seconds() > 1.0)
+                {
+                    auto report = profiler_.report();
+                    RCLCPP_INFO(get_logger(), report.c_str());
+                    profiler_.reset();
+                }
             }
 
-            rclcpp::spin_some(this->get_node_base_interface());
+            rclcpp::spin_some(get_node_base_interface());
         }
     }
 
 protected:
-    std::vector<rcl_interfaces::msg::SetParametersResult> set_parameters_callback(const std::vector<rclcpp::Parameter> &parameters_to_set) override
+    void set_parameters_callback(const std::vector<rclcpp::Parameter> &parameters_to_set, std::vector<rcl_interfaces::msg::SetParametersResult>& set_results) override
     {
-        auto set_results = this->set_parameters(parameters_to_set);
-
-        for (const auto &result : set_results)
+        for (size_t i = 0; i < parameters_to_set.size(); ++i)
         {
-            if (!result.successful)
+            if (set_results[i].successful)
             {
-                RCLCPP_ERROR(this->get_logger(), "Failed to set parameter: %s", result.reason.c_str());
+
+            }
+            else
+            {
+                RCLCPP_ERROR(get_logger(), "Failed to set parameter: %s: %s", parameters_to_set[i].get_name().c_str(), set_results[i].reason.c_str());
             }
         }
-
-        return set_results;
     }
 
-private:
-    rclcpp::Publisher<sky360_camera::msg::BayerImage>::SharedPtr image_publisher_;
-    rclcpp::Publisher<sky360_camera::msg::ImageInfo>::SharedPtr image_info_publisher_;
-    rclcpp::Publisher<sky360_camera::msg::CameraInfo>::SharedPtr camera_info_publisher_;
-    cv::VideoCapture video_capture_;
-    sky360_camera::msg::CameraInfo camera_info_msg_;
-    boost::uuids::random_generator uuid_generator_;
-    bool is_video_;
-
-    void declare_parameters()
+    void declare_parameters() override
     {
-        declare_parameter<bool>("is_video", false);
-        declare_parameter<int>("camera_id", 0);
-        declare_parameter<std::string>("video_path", "");
+        std::vector<rclcpp::Parameter> params = {
+            rclcpp::Parameter("is_video", false),
+            rclcpp::Parameter("camera_id", 0),
+            rclcpp::Parameter("video_path", ""),
+        };
+        ParameterNode::declare_parameters(params);
 
         is_video_ = get_parameter("is_video").get_value<rclcpp::ParameterType::PARAMETER_BOOL>();
     }
+
+private:
+    boost::uuids::random_generator uuid_generator_;
+    cv::VideoCapture video_capture_;
+    rclcpp::Publisher<sky360_camera::msg::BayerImage>::SharedPtr image_publisher_;
+    rclcpp::Publisher<sky360_camera::msg::ImageInfo>::SharedPtr image_info_publisher_;
+    rclcpp::Publisher<sky360_camera::msg::CameraInfo>::SharedPtr camera_info_publisher_;
+    sky360_camera::msg::CameraInfo camera_info_msg_;
+    sky360lib::utils::Profiler profiler_;
+    bool is_video_;
+    int camera_id_;
+    std::string video_path_;
 
     inline void open_camera()
     {
         if (!is_video_)
         {
-            auto camera_id = get_parameter("camera_id").get_value<rclcpp::ParameterType::PARAMETER_INTEGER>();
-            video_capture_.open(camera_id);
+            camera_id_ = get_parameter("camera_id").get_value<rclcpp::ParameterType::PARAMETER_INTEGER>();
+            video_capture_.open(camera_id_);
         }
         else
         {
-            auto video_path = get_parameter("video_path").get_value<rclcpp::ParameterType::PARAMETER_STRING>();
-            video_capture_.open(video_path);
+            video_path_ = get_parameter("video_path").get_value<rclcpp::ParameterType::PARAMETER_STRING>();
+            video_capture_.open(video_path_);
         }
         setHighestResolution(video_capture_);
     }
@@ -196,8 +206,8 @@ private:
     inline void create_camera_info_msg()
     {
         camera_info_msg_.id = "web_camera_node";
-        camera_info_msg_.model = "";
-        camera_info_msg_.serial_num = "";
+        camera_info_msg_.model = is_video_ ? "video" : "web camera";
+        camera_info_msg_.serial_num = is_video_ ? video_path_ : std::to_string(camera_id_);
         camera_info_msg_.overscan.start_x = 0;
         camera_info_msg_.overscan.start_y = 0;
         camera_info_msg_.overscan.width = 0;

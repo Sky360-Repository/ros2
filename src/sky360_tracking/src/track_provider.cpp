@@ -16,8 +16,10 @@
 #include "sky360lib/api/utils/profiler.hpp"
 #include "video_tracker.hpp"
 
+#include "parameter_node.hpp"
+
 class TrackProvider
-    : public rclcpp::Node
+    : public ParameterNode
 {
 public:
     static std::shared_ptr<TrackProvider> Create()
@@ -27,9 +29,20 @@ public:
         return result;
     }
 
+protected:
+    void set_parameters_callback(const std::vector<rclcpp::Parameter> &parameters_to_set, std::vector<rcl_interfaces::msg::SetParametersResult> &set_results) override
+    {
+        (void)parameters_to_set;
+        (void)set_results;
+    }
+
+    void declare_parameters() override
+    {
+    }
+
 private:
     TrackProvider()
-        : Node("frame_provider_node"), video_tracker_(std::map<std::string, std::string>(), get_logger())
+        : ParameterNode("frame_provider_node"), video_tracker_(std::map<std::string, std::string>(), get_logger())
     {
     }
 
@@ -51,7 +64,10 @@ private:
     {
         try
         {
-            profiler_.start("Frame");
+            if (enable_profiling_)
+            {
+                profiler_.start("Frame");
+            }
 
             cv_bridge::CvImagePtr masked_img_bridge = cv_bridge::toCvCopy(image_msg, image_msg->encoding);
 
@@ -68,12 +84,15 @@ private:
             publish_prediction_array(image_msg->header);
             publish_tracking_state(image_msg->header);
 
-            profiler_.stop("Frame");
-            if (profiler_.get_data("Frame").duration_in_seconds() > 1.0)
+            if (enable_profiling_)
             {
-                auto report = profiler_.report();
-                RCLCPP_INFO(get_logger(), report.c_str());
-                profiler_.reset();
+                profiler_.stop("Frame");
+                if (profiler_.get_data("Frame").duration_in_seconds() > 1.0)
+                {
+                    auto report = profiler_.report();
+                    RCLCPP_INFO(get_logger(), report.c_str());
+                    profiler_.reset();
+                }
             }
         }
         catch (cv_bridge::Exception &e)

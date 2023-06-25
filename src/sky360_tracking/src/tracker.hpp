@@ -8,6 +8,7 @@
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/tracking.hpp>
+#include <opencv2/core/ocl.hpp>
 
 #include "track_prediction.hpp"
 
@@ -46,20 +47,21 @@ public:
     static cv::Ptr<cv::Tracker> Select(const std::map<std::string, std::string> &settings)
     {
         (void)settings;
-        // std::string tracker_type = settings["tracker_type"];
+        std::string tracker_type = "KCF";//settings["tracker_type"];
 
         // if (tracker_type == "BOOSTING")
         // {
         //     return cv::TrackerBoosting::create();
         // }
-        // else if (tracker_type == "MIL")
-        // {
-        //     return cv::TrackerMIL::create();
-        // }
-        // else if (tracker_type == "KCF")
-        // {
-        //     return cv::TrackerKCF::create();
-        // }
+        // else 
+        if (tracker_type == "MIL")
+        {
+            return cv::TrackerMIL::create();
+        }
+        else if (tracker_type == "KCF")
+        {
+            return cv::TrackerKCF::create();
+        }
         // else if (tracker_type == "TLD")
         // {
         //     return cv::TrackerTLD::create();
@@ -68,18 +70,18 @@ public:
         // {
         //     return cv::TrackerMedianFlow::create();
         // }
-        // else if (tracker_type == "GOTURN")
-        // {
-        //     return cv::TrackerGOTURN::create();
-        // }
+        else if (tracker_type == "GOTURN")
+        {
+            return cv::TrackerGOTURN::create();
+        }
         // else if (tracker_type == "MOSSE")
         // {
-        //     return cv::TrackerMOSSE::create();
+        //      return cv::TrackerMOSSE::create();
         // }
-        // else if (tracker_type == "DASIAMRPN")
-        // {
-        //     return cv::TrackerDaSiamRPN::create();
-        // }
+        else if (tracker_type == "DASIAMRPN")
+        {
+            return cv::TrackerDaSiamRPN::create();
+        }
 
         cv::TrackerCSRT::Params params;
         params.use_gray = true;

@@ -12,7 +12,7 @@ class ParameterNode
 {
 public:
     ParameterNode(const std::string &node_name)
-        : Node(node_name)
+        : Node(node_name), enable_profiling_(false)
     {
         list_parameters_service_ = this->create_service<rcl_interfaces::srv::ListParameters>(
             "list_parameters", std::bind(&ParameterNode::handle_list_parameters, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
@@ -22,10 +22,31 @@ public:
 
         set_parameters_service_ = this->create_service<rcl_interfaces::srv::SetParameters>(
             "set_parameters", std::bind(&ParameterNode::handle_set_parameters, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+
+        declare_parameters();
+    }
+
+    void declare_parameters(const std::vector<rclcpp::Parameter>& params)
+    {
+        for (const auto &param : params)
+        {
+            declare_parameter(param.get_name(), param.get_parameter_value());
+        }
     }
 
 protected:
-    virtual std::vector<rcl_interfaces::msg::SetParametersResult> set_parameters_callback(const std::vector<rclcpp::Parameter>& parameters_to_set) = 0;
+    virtual void set_parameters_callback(const std::vector<rclcpp::Parameter> &parameters_to_set, std::vector<rcl_interfaces::msg::SetParametersResult> &set_results) = 0;
+
+    virtual void declare_parameters()
+    {
+        std::vector<rclcpp::Parameter> params = {
+            rclcpp::Parameter("enable_profiling", false)};
+        declare_parameters(params);
+
+        enable_profiling_ = get_parameter("enable_profiling").get_value<rclcpp::ParameterType::PARAMETER_BOOL>();
+    }
+
+    bool enable_profiling_;
 
 private:
     rclcpp::Service<rcl_interfaces::srv::ListParameters>::SharedPtr list_parameters_service_;
@@ -39,7 +60,7 @@ private:
     {
         (void)request_header;
 
-        auto parameters_and_prefixes = this->list_parameters({}, request->depth);
+        auto parameters_and_prefixes = list_parameters({}, request->depth);
         response->result.names = parameters_and_prefixes.names;
         response->result.prefixes = {};
     }
@@ -53,7 +74,7 @@ private:
 
         for (const auto &name : request->names)
         {
-            rclcpp::Parameter parameter = this->get_parameter(name);
+            rclcpp::Parameter parameter = get_parameter(name);
             rcl_interfaces::msg::Parameter msg_parameter = parameter.to_parameter_msg();
             response->values.push_back(msg_parameter.value);
         }
@@ -71,7 +92,8 @@ private:
         {
             parameters_to_set.emplace_back(rclcpp::Parameter::from_parameter_msg(parameter));
         }
-        response->results = set_parameters_callback(parameters_to_set);
+        response->results = set_parameters(parameters_to_set);
+        set_parameters_callback(parameters_to_set, response->results);
     }
 };
 

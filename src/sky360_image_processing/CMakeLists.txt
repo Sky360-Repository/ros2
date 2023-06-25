@@ -43,7 +43,7 @@ install(TARGETS frame_provider_node DESTINATION lib/${PROJECT_NAME})
 # Background Subtractor Node
 add_executable(background_subtractor_node src/background_subtractor.cpp)
 target_link_libraries(background_subtractor_node PUBLIC sky360lib)
-ament_target_dependencies(background_subtractor_node PUBLIC rclcpp sensor_msgs vision_msgs cv_bridge OpenCV)
+ament_target_dependencies(background_subtractor_node PUBLIC rclcpp sensor_msgs vision_msgs cv_bridge OpenCV sky360_camera)
 install(TARGETS background_subtractor_node DESTINATION lib/${PROJECT_NAME})
 
 # # Background Subtractor Detector Node (Code moved to BGS above)

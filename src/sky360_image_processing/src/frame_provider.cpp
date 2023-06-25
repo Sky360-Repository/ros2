@@ -11,12 +11,16 @@
 #include "sky360_camera/msg/bayer_image.hpp"
 #include "sky360_camera/msg/bayer_format.hpp"
 
+#include <sky360lib/api/utils/profiler.hpp>
+
+#include "parameter_node.hpp"
+
 class FrameProvider 
-    : public rclcpp::Node
+    : public ParameterNode
 {
 public:
     FrameProvider() 
-        : Node("frame_provider_node")
+        : ParameterNode("frame_provider_node")
     {
         image_subscription_ = create_subscription<sky360_camera::msg::BayerImage>("sky360/camera/all_sky/bayer", rclcpp::QoS(10),
             std::bind(&FrameProvider::imageCallback, this, std::placeholders::_1));
@@ -26,12 +30,25 @@ public:
         image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/frames/all_sky/image_info", rclcpp::QoS(10));
     }
 
+protected:
+    void set_parameters_callback(const std::vector<rclcpp::Parameter> &parameters_to_set, std::vector<rcl_interfaces::msg::SetParametersResult> &set_results) override
+    {
+        (void)parameters_to_set;
+        (void)set_results;
+    }
+
+    void declare_parameters() override
+    {
+    }
 private:
     void imageCallback(const sky360_camera::msg::BayerImage::SharedPtr msg)
     {
         try
         {
-            auto start = std::chrono::high_resolution_clock::now();
+            if (enable_profiling_)
+            {
+                profiler_.start("Frame");
+            }
 
             cv_bridge::CvImagePtr bayer_img_bridge = cv_bridge::toCvCopy(msg->image, msg->image.encoding);
             if (!bayer_img_bridge->image.empty())
@@ -45,7 +62,7 @@ private:
                 if (true) // Resize frame
                 {
                     double aspect_ratio = (double)debayered_img.size().width / (double)debayered_img.size().height;
-                    frame_height = 960;
+                    frame_height = 1280;
                     frame_width = ((uint32_t)(aspect_ratio * (double)frame_height)) & 0xFFFFFFFE;
                     cv::resize(debayered_img, the_img, cv::Size(frame_width, frame_height));
                 }
@@ -77,14 +94,15 @@ private:
                 }
             }
 
-            auto end = std::chrono::high_resolution_clock::now();
-            duration_total += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() / 1.0e9;
-            ++frames;
-            if (duration_total > 3.0)
+            if (enable_profiling_)
             {
-                RCLCPP_INFO(get_logger(), "%f fps", frames / duration_total);
-                duration_total = 0.0;
-                frames = 0.0;
+                profiler_.stop("Frame");
+                if (profiler_.get_data("Frame").duration_in_seconds() > 1.0)
+                {
+                    auto report = profiler_.report();
+                    RCLCPP_INFO(get_logger(), report.c_str());
+                    profiler_.reset();
+                }
             }
         }
         catch (cv_bridge::Exception &e)
@@ -126,8 +144,8 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr gray_publisher_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr masked_publisher_;
     rclcpp::Publisher<sky360_camera::msg::ImageInfo>::SharedPtr image_info_publisher_;
-    double duration_total = 0.0;
-    double frames = 0.0;
+
+    sky360lib::utils::Profiler profiler_;
 };
 
 int main(int argc, char **argv)

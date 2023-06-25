@@ -10,10 +10,14 @@
 #include "sky360_interfaces/msg/track_detection_array.hpp"
 #include "sky360_interfaces/msg/track_trajectory_array.hpp"
 
+#include <sky360lib/api/utils/profiler.hpp>
+
 #include "annotated_frame_creator.hpp"
 
+#include "parameter_node.hpp"
+
 class AnnotatedFrameProvider 
-    : public rclcpp::Node
+    : public ParameterNode
 {
 public:
     static std::shared_ptr<AnnotatedFrameProvider> Create()
@@ -23,9 +27,20 @@ public:
         return result;
     }
 
+protected:
+    void set_parameters_callback(const std::vector<rclcpp::Parameter> &parameters_to_set, std::vector<rcl_interfaces::msg::SetParametersResult> &set_results) override
+    {
+        (void)parameters_to_set;
+        (void)set_results;
+    }
+
+    void declare_parameters() override
+    {
+    }
+
 private:
     AnnotatedFrameProvider() 
-        : Node("annotated_frame_provider_node")
+        : ParameterNode("annotated_frame_provider_node")
         , annotated_frame_creator_(std::map<std::string, std::string>())
     {
     }
@@ -53,7 +68,10 @@ private:
     {
         try
         {
-            auto start = std::chrono::high_resolution_clock::now();
+            if (enable_profiling_)
+            {
+                profiler_.start("Frame");
+            }
 
             cv_bridge::CvImagePtr masked_img_bridge = cv_bridge::toCvCopy(masked_image_msg, masked_image_msg->encoding);
 
@@ -62,14 +80,15 @@ private:
             auto annotated_frame_msg = cv_bridge::CvImage(masked_image_msg->header, sensor_msgs::image_encodings::BGR8, annotated_frame).toImageMsg();
             pub_annotated_frame_->publish(*annotated_frame_msg);
 
-            auto end = std::chrono::high_resolution_clock::now();
-            duration_total += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() / 1.0e9;
-            ++frames;
-            if (duration_total > 2.0)
+            if (enable_profiling_)
             {
-                RCLCPP_INFO(get_logger(), "%f fps", frames / duration_total);
-                duration_total = 0.0;
-                frames = 0.0;
+                profiler_.stop("Frame");
+                if (profiler_.get_data("Frame").duration_in_seconds() > 1.0)
+                {
+                    auto report = profiler_.report();
+                    RCLCPP_INFO(get_logger(), report.c_str());
+                    profiler_.reset();
+                }
             }
         }
         catch (cv_bridge::Exception &e)
@@ -89,9 +108,7 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_annotated_frame_;
 
     AnnotatedFrameCreator annotated_frame_creator_;
-
-    double duration_total = 0.0;
-    double frames = 0.0;
+    sky360lib::utils::Profiler profiler_;
 
     friend std::shared_ptr<AnnotatedFrameProvider> std::make_shared<AnnotatedFrameProvider>();
 };

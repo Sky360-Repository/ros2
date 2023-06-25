@@ -5,16 +5,20 @@
 
 #include <sensor_msgs/msg/image.hpp>
 #include <vision_msgs/msg/bounding_box2_d_array.hpp>
+#include "sky360_camera/msg/bayer_image.hpp"
 
 #include <sky360lib/api/bgs/bgs.hpp>
 #include <sky360lib/api/blobs/connectedBlobDetection.hpp>
+#include <sky360lib/api/utils/profiler.hpp>
+
+#include "parameter_node.hpp"
 
 class BackgroundSubtractor 
-    : public rclcpp::Node
+    : public ParameterNode
 {
 public:
     BackgroundSubtractor() 
-        : Node("background_subtractor_node")
+        : ParameterNode("background_subtractor_node")
     {
         image_subscription_ = create_subscription<sensor_msgs::msg::Image>("sky360/frames/all_sky/gray", rclcpp::QoS(10),
             std::bind(&BackgroundSubtractor::imageCallback, this, std::placeholders::_1));
@@ -23,12 +27,26 @@ public:
         detection_publisher_ = create_publisher<vision_msgs::msg::BoundingBox2DArray>("sky360/detector/all_sky/bounding_boxes", rclcpp::QoS(10));
     }
 
+protected:
+    void set_parameters_callback(const std::vector<rclcpp::Parameter> &parameters_to_set, std::vector<rcl_interfaces::msg::SetParametersResult> &set_results) override
+    {
+        (void)parameters_to_set;
+        (void)set_results;
+    }
+
+    void declare_parameters() override
+    {
+    }
+
 private:
     void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg)
     {
         try
         {
-            auto start = std::chrono::high_resolution_clock::now();
+            if (enable_profiling_)
+            {
+                profiler_.start("Frame");
+            }
             cv_bridge::CvImagePtr cv_image = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::MONO8);
 
             cv::Mat mask;
@@ -47,14 +65,15 @@ private:
                 detection_publisher_->publish(bbox2D_array);
             }
 
-            auto end = std::chrono::high_resolution_clock::now();
-            duration_total += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() / 1.0e9;
-            ++frames;
-            if (duration_total > 3.0)
+            if (enable_profiling_)
             {
-                RCLCPP_INFO(get_logger(), "%f fps", frames / duration_total);
-                duration_total = 0.0;
-                frames = 0.0;
+                profiler_.stop("Frame");
+                if (profiler_.get_data("Frame").duration_in_seconds() > 1.0)
+                {
+                    auto report = profiler_.report();
+                    RCLCPP_INFO(get_logger(), report.c_str());
+                    profiler_.reset();
+                }
             }
         }
         catch (cv_bridge::Exception &e)
@@ -83,9 +102,7 @@ private:
     //sky360lib::bgs::Vibe background_subtractor_;
     sky360lib::bgs::WeightedMovingVariance background_subtractor_;
     sky360lib::blobs::ConnectedBlobDetection blob_detector_;
-
-    double duration_total = 0.0;
-    double frames = 0.0;
+    sky360lib::utils::Profiler profiler_;
 };
 
 int main(int argc, char **argv)
