@@ -22,12 +22,26 @@ public:
     FrameProvider() 
         : ParameterNode("frame_provider_node")
     {
-        image_subscription_ = create_subscription<sky360_camera::msg::BayerImage>("sky360/camera/all_sky/bayer", rclcpp::QoS(10),
+        // Define the QoS profile for the subscriber
+        rclcpp::QoS sub_qos_profile(10);
+        sub_qos_profile.reliability(rclcpp::ReliabilityPolicy::Reliable);
+        sub_qos_profile.durability(rclcpp::DurabilityPolicy::Volatile); // TransientLocal);
+        sub_qos_profile.history(rclcpp::HistoryPolicy::KeepLast);
+
+        // Define the QoS profile for the publisher
+        rclcpp::QoS pub_qos_profile(10);
+        pub_qos_profile.reliability(rclcpp::ReliabilityPolicy::Reliable);
+        pub_qos_profile.durability(rclcpp::DurabilityPolicy::Volatile);
+        pub_qos_profile.history(rclcpp::HistoryPolicy::KeepLast);
+
+        image_subscription_ = create_subscription<sky360_camera::msg::BayerImage>("sky360/camera/all_sky/bayer", sub_qos_profile,
             std::bind(&FrameProvider::imageCallback, this, std::placeholders::_1));
 
-        gray_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/all_sky/gray", rclcpp::QoS(10));
-        masked_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/all_sky/masked", rclcpp::QoS(10));
-        image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/frames/all_sky/image_info", rclcpp::QoS(10));
+        //gray_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/all_sky/gray", rclcpp::QoS(10));
+        masked_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/all_sky/masked", pub_qos_profile);
+        image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/frames/all_sky/image_info", pub_qos_profile);
+
+        declare_parameters();
     }
 
 protected:
@@ -40,6 +54,7 @@ protected:
     void declare_parameters() override
     {
     }
+
 private:
     void imageCallback(const sky360_camera::msg::BayerImage::SharedPtr msg)
     {
@@ -59,7 +74,7 @@ private:
                 cv::Mat the_img;
                 uint32_t frame_width = debayered_img.size().width;
                 uint32_t frame_height = debayered_img.size().height;
-                if (true) // Resize frame
+                if (false) // Resize frame
                 {
                     double aspect_ratio = (double)debayered_img.size().width / (double)debayered_img.size().height;
                     frame_height = 1280;
@@ -81,17 +96,17 @@ private:
                 frame_info_msg.roi.height = frame_height;
                 image_info_publisher_->publish(frame_info_msg);
 
-                if (the_img.channels() > 1)
-                {
-                    cv::Mat gray_img;
-                    cv::cvtColor(the_img, gray_img, cv::COLOR_BGR2GRAY);
-                    auto gray_image_msg = cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::MONO8, gray_img).toImageMsg();
-                    gray_publisher_->publish(*gray_image_msg);
-                }
-                else
-                {
-                    gray_publisher_->publish(*the_image_msg);
-                }
+                // if (the_img.channels() > 1)
+                // {
+                //     cv::Mat gray_img;
+                //     cv::cvtColor(the_img, gray_img, cv::COLOR_BGR2GRAY);
+                //     auto gray_image_msg = cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::MONO8, gray_img).toImageMsg();
+                //     gray_publisher_->publish(*gray_image_msg);
+                // }
+                // else
+                // {
+                //     gray_publisher_->publish(*the_image_msg);
+                // }
             }
 
             if (enable_profiling_)

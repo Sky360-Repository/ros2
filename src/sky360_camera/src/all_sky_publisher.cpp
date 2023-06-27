@@ -28,9 +28,22 @@ public:
     AllSkyPublisher()
         : ParameterNode("all_sky_image_publisher_node")
     {
-        image_publisher_ = create_publisher<sky360_camera::msg::BayerImage>("sky360/camera/all_sky/bayer", rclcpp::QoS(10));
-        image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/camera/all_sky/image_info", rclcpp::QoS(10));
-        camera_info_publisher_ = create_publisher<sky360_camera::msg::CameraInfo>("sky360/camera/all_sky/camera_info", rclcpp::QoS(10));
+        // Define the QoS profile
+        rclcpp::QoS qos_profile(10); // The depth of the publisher queue
+
+        // Reliability: use reliable communication. You could also use rclcpp::ReliabilityPolicy::BestEffort if you want to allow dropping of messages
+        qos_profile.reliability(rclcpp::ReliabilityPolicy::Reliable);
+
+        // Durability: transient local means that the publisher will keep some messages around to send to any future subscribers. 
+        // Volatile means it won't keep any data around.
+        qos_profile.durability(rclcpp::DurabilityPolicy::Volatile);
+
+        // History: keep last will only keep the last few messages, defined by the depth of the queue.
+        qos_profile.history(rclcpp::HistoryPolicy::KeepLast);
+
+        image_publisher_ = create_publisher<sky360_camera::msg::BayerImage>("sky360/camera/all_sky/bayer", qos_profile);
+        image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/camera/all_sky/image_info", qos_profile);
+        camera_info_publisher_ = create_publisher<sky360_camera::msg::CameraInfo>("sky360/camera/all_sky/camera_info", qos_profile);
 
         declare_parameters();
     }
