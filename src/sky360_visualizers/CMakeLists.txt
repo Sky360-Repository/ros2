@@ -41,9 +41,16 @@ target_link_libraries(annotated_frame_provider_node PUBLIC sky360lib)
 ament_target_dependencies(annotated_frame_provider_node PUBLIC rclcpp sensor_msgs vision_msgs cv_bridge message_filters OpenCV sky360_interfaces)
 install(TARGETS annotated_frame_provider_node DESTINATION lib/${PROJECT_NAME})
 
+# Frame Viewer Node
 add_executable(frame_viewer_node src/frame_viewer.cpp)
 target_link_libraries(frame_viewer_node PUBLIC sky360lib)
 ament_target_dependencies(frame_viewer_node PUBLIC rclcpp sensor_msgs vision_msgs cv_bridge message_filters OpenCV sky360_interfaces)
 install(TARGETS frame_viewer_node DESTINATION lib/${PROJECT_NAME})
+
+# Frame BBox Viewer Node
+add_executable(frame_bbox_viewer_node src/frame_bbox_viewer.cpp)
+target_link_libraries(frame_bbox_viewer_node PUBLIC sky360lib)
+ament_target_dependencies(frame_bbox_viewer_node PUBLIC rclcpp sensor_msgs vision_msgs cv_bridge message_filters OpenCV sky360_interfaces)
+install(TARGETS frame_bbox_viewer_node DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

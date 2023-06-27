@@ -22,16 +22,30 @@ def generate_launch_description():
             name='background_subtractor_node',
             output='screen'
         ),
-        Node(
-            package='sky360_tracking',
-            executable='track_provider_node',
-            name='track_provider_node',
-            output='screen'
-        ),
+        # Node(
+        #     package='sky360_tracking',
+        #     executable='track_provider_node',
+        #     name='track_provider_node',
+        #     output='screen'
+        # ),
+        # Node(
+        #     package='sky360_visualizers',
+        #     executable='annotated_frame_provider_node',
+        #     name='annotated_frame_provider_node',
+        #     output='screen'
+        # ),
+        # Node(
+        #     package='sky360_visualizers',
+        #     executable='frame_viewer_node',
+        #     name='frame_viewer_node',
+        #     output='screen',
+        #     parameters=[{'enable_profiling': False}, {"topics": ["sky360/frames/all_sky/masked", "sky360/frames/all_sky/foreground_mask"]}]
+        # ),
         Node(
             package='sky360_visualizers',
-            executable='annotated_frame_provider_node',
-            name='annotated_frame_provider_node',
-            output='screen'
+            executable='frame_bbox_viewer_node',
+            name='frame_bbox_viewer_node',
+            output='screen',
+            parameters=[{'enable_profiling': False}, {"topics": ["sky360/frames/all_sky/masked", "sky360/frames/all_sky/foreground_mask"]}]
         ),
     ])

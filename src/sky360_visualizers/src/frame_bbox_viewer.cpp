@@ -8,6 +8,7 @@
 #include <message_filters/time_synchronizer.h>
 
 #include <sensor_msgs/msg/image.hpp>
+#include <vision_msgs/msg/bounding_box2_d_array.hpp>
 
 #include <sky360lib/api/utils/profiler.hpp>
 
@@ -15,13 +16,13 @@
 
 #include "parameter_node.hpp"
 
-class FrameViewer
+class FrameBBoxViewer
     : public ParameterNode
 {
 public:
-    static std::shared_ptr<FrameViewer> Create()
+    static std::shared_ptr<FrameBBoxViewer> Create()
     {
-        auto result = std::shared_ptr<FrameViewer>(new FrameViewer());
+        auto result = std::shared_ptr<FrameBBoxViewer>(new FrameBBoxViewer());
         result->init();
         return result;
     }
@@ -41,9 +42,8 @@ protected:
     }
 
 private:
-    FrameViewer() 
-        : ParameterNode("frame_viewer_node")
-        , current_topic_{0}
+    FrameBBoxViewer()
+        : ParameterNode("frame_bbox_viewer_node"), current_topic_{0}
     {
         declare_parameters();
     }
@@ -54,13 +54,17 @@ private:
         sub_qos_profile_.durability(rclcpp::DurabilityPolicy::Volatile); // TransientLocal);
         sub_qos_profile_.history(rclcpp::HistoryPolicy::KeepLast);
 
-        image_subscription_ = create_subscription<sensor_msgs::msg::Image>(topics_[current_topic_], sub_qos_profile_,
-            std::bind(&FrameViewer::imageCallback, this, std::placeholders::_1));
+        sub_image = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(shared_from_this(), topics_[current_topic_]);
+        sub_bbox = std::make_shared<message_filters::Subscriber<vision_msgs::msg::BoundingBox2DArray>>(shared_from_this(), "sky360/detector/all_sky/bounding_boxes");
+
+        time_synchronizer_ = std::make_shared<message_filters::TimeSynchronizer<sensor_msgs::msg::Image, vision_msgs::msg::BoundingBox2DArray>>(*sub_image, *sub_bbox, 10);
+        time_synchronizer_->registerCallback(&FrameBBoxViewer::imageCallback, this);
+
         cv::namedWindow("Image Viewer", cv::WINDOW_NORMAL);
         cv::displayStatusBar("Image Viewer", topics_[current_topic_], 0);
     }
 
-    void imageCallback(const sensor_msgs::msg::Image::SharedPtr masked_image_msg)
+    void imageCallback(const sensor_msgs::msg::Image::SharedPtr &image_msg, const vision_msgs::msg::BoundingBox2DArray::SharedPtr &bbox_msg)
     {
         try
         {
@@ -69,20 +73,39 @@ private:
                 profiler_.start("Frame");
             }
 
-            cv::Mat frame = cv_bridge::toCvCopy(masked_image_msg, masked_image_msg->encoding)->image;
+            cv::Mat frame = cv_bridge::toCvCopy(image_msg, image_msg->encoding)->image;
+
+            for (const auto &bbox2D : bbox_msg->boxes)
+            {
+                auto bbox = cv::Rect(bbox2D.center.position.x - bbox2D.size_x / 2, bbox2D.center.position.y - bbox2D.size_y / 2, bbox2D.size_x, bbox2D.size_y);
+                // cv::Point p1(bbox.x, bbox.y);
+                // cv::Point p2(bbox.x + bbox.width, bbox.y + bbox.height);
+                // cv::Scalar color = _color(tracking_state);
+                cv::rectangle(frame, bbox, cv::Scalar(255, 0, 255), 5, 1);
+            }
+
             cv::imshow("Image Viewer", frame);
             int key = cv::waitKey(1);
             bool topic_change = false;
             switch (key)
             {
-                case 81: current_topic_--; topic_change = true; break;
-                case 83: current_topic_++; topic_change = true; break;
+            case 81:
+                current_topic_--;
+                topic_change = true;
+                break;
+            case 83:
+                current_topic_++;
+                topic_change = true;
+                break;
             }
             if (topic_change)
             {
                 current_topic_ = current_topic_ < 0 ? topics_.size() - 1 : (current_topic_ >= (int)topics_.size() ? 0 : current_topic_);
-                image_subscription_ = create_subscription<sensor_msgs::msg::Image>(topics_[current_topic_], sub_qos_profile_,
-                    std::bind(&FrameViewer::imageCallback, this, std::placeholders::_1));
+
+                sub_image = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(shared_from_this(), topics_[current_topic_]);
+                time_synchronizer_ = std::make_shared<message_filters::TimeSynchronizer<sensor_msgs::msg::Image, vision_msgs::msg::BoundingBox2DArray>>(*sub_image, *sub_bbox, 10);
+                time_synchronizer_->registerCallback(&FrameBBoxViewer::imageCallback, this);
+
                 cv::displayStatusBar("Image Viewer", topics_[current_topic_], 0);
             }
 
@@ -104,18 +127,21 @@ private:
     }
 
     rclcpp::QoS sub_qos_profile_{10};
-    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_subscription_;
+    std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::Image>> sub_image;
+    std::shared_ptr<message_filters::Subscriber<vision_msgs::msg::BoundingBox2DArray>> sub_bbox;
+    std::shared_ptr<message_filters::TimeSynchronizer<sensor_msgs::msg::Image, vision_msgs::msg::BoundingBox2DArray>> time_synchronizer_;
+
     sky360lib::utils::Profiler profiler_;
     std::vector<std::string> topics_;
     int current_topic_;
 
-    friend std::shared_ptr<FrameViewer> std::make_shared<FrameViewer>();
+    friend std::shared_ptr<FrameBBoxViewer> std::make_shared<FrameBBoxViewer>();
 };
 
 int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
-    auto annotatedFrameProvider = FrameViewer::Create();
+    auto annotatedFrameProvider = FrameBBoxViewer::Create();
     rclcpp::spin(annotatedFrameProvider);
     rclcpp::shutdown();
     return 0;
