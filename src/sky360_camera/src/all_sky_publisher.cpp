@@ -97,11 +97,19 @@ public:
     }
 
 protected:
-    void set_parameters_callback(const std::vector<rclcpp::Parameter> &parameters_to_set, std::vector<rcl_interfaces::msg::SetParametersResult> &set_results) override
+    void set_parameters_callback(const std::vector<rclcpp::Parameter> &params) override
     {
-        RCLCPP_INFO(get_logger(), "AllSkyPublisher: set_parameters_callback");
-        (void)parameters_to_set;
-        (void)set_results;
+        for (auto &param : params)
+        {
+            if (param.get_name() == "exposure")
+            {
+                exposure_ = param.as_int();
+            }
+            else if (param.get_name() == "gain")
+            {
+                gain_ = param.as_int();
+            }
+        }
     }
 
     void declare_parameters() override
@@ -113,7 +121,7 @@ protected:
         ParameterNode::declare_parameters(declare_params);
 
         auto assign_params = get_parameters({"exposure", "gain"});
-        assign_parameters_variables(assign_params);
+        set_parameters_callback(assign_params);
     }
 
 private:
@@ -128,22 +136,6 @@ private:
     sky360lib::utils::Profiler profiler_;
     int exposure_;
     int gain_;
-
-
-    inline void assign_parameters_variables(const std::vector<rclcpp::Parameter> &params)
-    {
-        for (auto &param : params)
-        {
-            if (param.get_name() == "exposure")
-            {
-                exposure_ = param.as_int();
-            }
-            else if (param.get_name() == "gain")
-            {
-                gain_ = param.as_int();
-            }
-        }
-    }
 
     inline void open_camera()
     {

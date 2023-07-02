@@ -80,19 +80,9 @@ public:
     }
 
 protected:
-    void set_parameters_callback(const std::vector<rclcpp::Parameter> &parameters_to_set, std::vector<rcl_interfaces::msg::SetParametersResult>& set_results) override
+    void set_parameters_callback(const std::vector<rclcpp::Parameter> &params) override
     {
-        for (size_t i = 0; i < parameters_to_set.size(); ++i)
-        {
-            if (set_results[i].successful)
-            {
-
-            }
-            else
-            {
-                RCLCPP_ERROR(get_logger(), "Failed to set parameter: %s: %s", parameters_to_set[i].get_name().c_str(), set_results[i].reason.c_str());
-            }
-        }
+        (void)params;
     }
 
     void declare_parameters() override

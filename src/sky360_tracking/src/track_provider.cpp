@@ -30,10 +30,9 @@ public:
     }
 
 protected:
-    void set_parameters_callback(const std::vector<rclcpp::Parameter> &parameters_to_set, std::vector<rcl_interfaces::msg::SetParametersResult> &set_results) override
+    void set_parameters_callback(const std::vector<rclcpp::Parameter> &params) override
     {
-        (void)parameters_to_set;
-        (void)set_results;
+        (void)params;
     }
 
     void declare_parameters() override
@@ -44,6 +43,7 @@ private:
     TrackProvider()
         : ParameterNode("frame_provider_node"), video_tracker_(std::map<std::string, std::string>(), get_logger())
     {
+        declare_parameters();
     }
 
     void init()

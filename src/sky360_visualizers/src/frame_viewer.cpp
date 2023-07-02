@@ -27,10 +27,9 @@ public:
     }
 
 protected:
-    void set_parameters_callback(const std::vector<rclcpp::Parameter> &parameters_to_set, std::vector<rcl_interfaces::msg::SetParametersResult> &set_results) override
+    void set_parameters_callback(const std::vector<rclcpp::Parameter> &params) override
     {
-        (void)parameters_to_set;
-        (void)set_results;
+        (void)params;
     }
 
     void declare_parameters() override
@@ -56,6 +55,7 @@ private:
 
         image_subscription_ = create_subscription<sensor_msgs::msg::Image>(topics_[current_topic_], sub_qos_profile_,
             std::bind(&FrameViewer::imageCallback, this, std::placeholders::_1));
+
         cv::namedWindow("Image Viewer", cv::WINDOW_NORMAL);
         cv::displayStatusBar("Image Viewer", topics_[current_topic_], 0);
     }

@@ -22,7 +22,7 @@ def generate_launch_description():
             executable='background_subtractor_node',
             name='background_subtractor_node',
             output='screen',
-            parameters=[{'enable_profiling': True}]
+            parameters=[{'enable_profiling': False}]
         ),
         # Node(
         #     package='sky360_tracking',
