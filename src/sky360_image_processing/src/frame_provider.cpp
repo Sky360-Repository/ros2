@@ -24,13 +24,13 @@ public:
     {
         // Define the QoS profile for the subscriber
         rclcpp::QoS sub_qos_profile(10);
-        sub_qos_profile.reliability(rclcpp::ReliabilityPolicy::Reliable);
-        sub_qos_profile.durability(rclcpp::DurabilityPolicy::Volatile); // TransientLocal);
+        sub_qos_profile.reliability(rclcpp::ReliabilityPolicy::BestEffort);
+        sub_qos_profile.durability(rclcpp::DurabilityPolicy::Volatile);
         sub_qos_profile.history(rclcpp::HistoryPolicy::KeepLast);
 
         // Define the QoS profile for the publisher
         rclcpp::QoS pub_qos_profile(10);
-        pub_qos_profile.reliability(rclcpp::ReliabilityPolicy::Reliable);
+        pub_qos_profile.reliability(rclcpp::ReliabilityPolicy::BestEffort);
         pub_qos_profile.durability(rclcpp::DurabilityPolicy::Volatile);
         pub_qos_profile.history(rclcpp::HistoryPolicy::KeepLast);
 

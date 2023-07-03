@@ -11,4 +11,7 @@ float64 brightness
 float64 gamma
 uint32 channels
 uint32 bin_mode
+bool cool_enabled
+float64 target_temp
 float64 current_temp
+bool auto_exposure

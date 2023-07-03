@@ -32,7 +32,7 @@ public:
         rclcpp::QoS qos_profile(10); // The depth of the publisher queue
 
         // Reliability: use reliable communication. You could also use rclcpp::ReliabilityPolicy::BestEffort if you want to allow dropping of messages
-        qos_profile.reliability(rclcpp::ReliabilityPolicy::Reliable);
+        qos_profile.reliability(rclcpp::ReliabilityPolicy::BestEffort);
 
         // Durability: transient local means that the publisher will keep some messages around to send to any future subscribers. 
         // Volatile means it won't keep any data around.
@@ -45,17 +45,12 @@ public:
         image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/camera/all_sky/image_info", qos_profile);
         camera_info_publisher_ = create_publisher<sky360_camera::msg::CameraInfo>("sky360/camera/all_sky/camera_info", qos_profile);
 
+        open_camera();
         declare_parameters();
     }
 
     void start_publishing()
     {
-        open_camera();
-
-        auto camera_info = qhy_camera_.get_camera_info();
-        auto camera_params = qhy_camera_.get_camera_params();
-        create_camera_info_msg(camera_params, camera_info);
-
         cv::Mat image;
         while (rclcpp::ok())
         {
@@ -64,17 +59,20 @@ public:
                 profiler_.start("Frame");
             }
 
-            camera_params = qhy_camera_.get_camera_params();
+            auto camera_params = qhy_camera_.get_camera_params();
 
             qhy_camera_.get_frame(image, false);
 
-            apply_auto_exposure(image, camera_params);
+            if (auto_exposure_)
+            {
+                apply_auto_exposure(image, camera_params);
+            }
 
             std_msgs::msg::Header header;
-            header.stamp = this->now();
+            header.stamp = now();
             header.frame_id = boost::uuids::to_string(uuid_generator_());
 
-            auto image_info_msg = generate_image_info(header, camera_params, camera_info);
+            auto image_info_msg = generate_image_info(header, camera_params);
 
             publish_image(image, header, image_info_msg);
 
@@ -92,7 +90,7 @@ public:
                 }
             }
 
-            rclcpp::spin_some(this->get_node_base_interface());
+            rclcpp::spin_some(get_node_base_interface());
         }
     }
 
@@ -101,13 +99,61 @@ protected:
     {
         for (auto &param : params)
         {
-            if (param.get_name() == "exposure")
+            if (param.get_name() == "auto_exposure")
+            {
+                auto_exposure_ = param.as_bool();
+            }
+            else if (param.get_name() == "exposure")
             {
                 exposure_ = param.as_int();
+                qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Exposure, exposure_);
             }
             else if (param.get_name() == "gain")
             {
                 gain_ = param.as_int();
+                qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Gain, gain_);
+            }
+            else if (param.get_name() == "offset")
+            {
+                auto offset = param.as_int();
+                qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Offset, offset);
+            }
+            else if (param.get_name() == "bpp")
+            {
+                auto bpp = param.as_int();
+                qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::TransferBits, bpp);
+            }
+            else if (param.get_name() == "contrast")
+            {
+                auto contrast = param.as_double();
+                qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Contrast, contrast);
+            }
+            else if (param.get_name() == "brightness")
+            {
+                auto brightness = param.as_double();
+                qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Brightness, brightness);
+            }
+            else if (param.get_name() == "gamma")
+            {
+                auto gamma = param.as_double();
+                qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Gamma, gamma);
+            }
+            else if (param.get_name() == "bin")
+            {
+                auto bin = param.as_int();
+                qhy_camera_.set_bin_mode(sky360lib::camera::QhyCamera::BinMode(bin));
+            }
+            else if (param.get_name() == "cooling")
+            {
+                auto camera_params = qhy_camera_.get_camera_params();
+                auto cooling = param.as_bool();
+                qhy_camera_.set_cool_temp(camera_params.target_temp, cooling);
+            }
+            else if (param.get_name() == "target_temperature")
+            {
+                auto camera_params = qhy_camera_.get_camera_params();
+                auto target_temperature = param.as_double();
+                qhy_camera_.set_cool_temp(target_temperature, camera_params.cool_enabled);
             }
         }
     }
@@ -115,13 +161,22 @@ protected:
     void declare_parameters() override
     {
         std::vector<rclcpp::Parameter> declare_params = {
+            rclcpp::Parameter("auto_exposure", true),
             rclcpp::Parameter("exposure", 2000),
             rclcpp::Parameter("gain", 0),
+            rclcpp::Parameter("offset", 0),
+            rclcpp::Parameter("bpp", 8),
+            rclcpp::Parameter("contrast", 0.0),
+            rclcpp::Parameter("brightness", 0.0),
+            rclcpp::Parameter("gamma", 1.0),
+            rclcpp::Parameter("bin", 1),
+            rclcpp::Parameter("cooling", false),
+            rclcpp::Parameter("target_temperature", 0.0),
         };
         ParameterNode::declare_parameters(declare_params);
 
-        auto assign_params = get_parameters({"exposure", "gain"});
-        set_parameters_callback(assign_params);
+        // auto assign_params = get_parameters({"exposure", "gain", "auto_exposure"});
+        // set_parameters_callback(assign_params);
     }
 
 private:
@@ -132,8 +187,9 @@ private:
     sky360_camera::msg::CameraInfo camera_info_msg_;
     sky360lib::camera::QhyCamera qhy_camera_;
     sky360lib::utils::AutoExposureControl auto_exposure_control_;
-    sky360lib::camera::QhyCamera::CameraInfo *camera_info;
     sky360lib::utils::Profiler profiler_;
+    int bayer_format_;
+    bool auto_exposure_;
     int exposure_;
     int gain_;
 
@@ -145,6 +201,8 @@ private:
         qhy_camera_.open("");
         qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Exposure, exposure_);
         qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Gain, gain_);
+        create_camera_info_msg();
+        bayer_format_ = camera_info_msg_.bayer_format;
 
         // uint32_t x = ((uint32_t)qhy_camera_.get_camera_info()->chip.max_image_width - (uint32_t)qhy_camera_.get_camera_info()->chip.max_image_height) / 2;
         // uint32_t y = 0;
@@ -157,11 +215,9 @@ private:
     {
         exposure_ = (int)camera_params.exposure;
         gain_ = (int)camera_params.gain;
-        //RCLCPP_INFO(get_logger(), "AllSkyPublisher: apply_auto_exposure: Exposure: %d, Gain: %d", exposure_, gain_);
         auto exposure_gain = auto_exposure_control_.calculate_exposure_gain(image, (double)exposure_, (double)gain_);
-        qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Exposure, exposure_gain.exposure);
-        qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Gain, exposure_gain.gain);
-        //RCLCPP_INFO(get_logger(), "AllSkyPublisher: apply_auto_exposure: fixed: Exposure: %d, Gain: %d", (int)exposure_gain.exposure, (int)exposure_gain.gain);
+        set_parameter({"exposure", (int)exposure_gain.exposure});
+        set_parameter({"gain", (int)exposure_gain.gain});
     }
 
     inline void publish_image(const cv::Mat &image, const std_msgs::msg::Header &header, const sky360_camera::msg::ImageInfo &image_info)
@@ -176,7 +232,7 @@ private:
         image_publisher_->publish(bayer_image_msg);
     }
 
-    inline sky360_camera::msg::ImageInfo generate_image_info(std_msgs::msg::Header &header, const sky360lib::camera::QhyCamera::CameraParams &camera_params, const sky360lib::camera::QhyCamera::CameraInfo *camera_info)
+    inline sky360_camera::msg::ImageInfo generate_image_info(std_msgs::msg::Header &header, const sky360lib::camera::QhyCamera::CameraParams &camera_params)
     {
         sky360_camera::msg::ImageInfo image_info_msg;
         image_info_msg.header = header;
@@ -186,7 +242,7 @@ private:
         image_info_msg.roi.width = camera_params.roi.width;
         image_info_msg.roi.height = camera_params.roi.height;
         image_info_msg.bpp = camera_params.bpp;
-        image_info_msg.bayer_format = camera_info->bayer_format;
+        image_info_msg.bayer_format = bayer_format_;
         image_info_msg.exposure = camera_params.exposure;
         image_info_msg.gain = camera_params.gain;
         image_info_msg.offset = camera_params.offset;
@@ -199,13 +255,17 @@ private:
         image_info_msg.channels = camera_params.channels;
         image_info_msg.bin_mode = (uint32_t)camera_params.bin_mode;
         image_info_msg.current_temp = qhy_camera_.get_current_temp();
+        image_info_msg.cool_enabled = camera_params.cool_enabled;
+        image_info_msg.target_temp = camera_params.target_temp;
+        image_info_msg.auto_exposure = auto_exposure_;
 
-        // image_info_publisher_->publish(image_info_msg);
         return image_info_msg;
     }
 
-    inline void create_camera_info_msg(const sky360lib::camera::QhyCamera::CameraParams &camera_params, const sky360lib::camera::QhyCamera::CameraInfo *camera_info)
+    inline void create_camera_info_msg()
     {
+        auto camera_info = qhy_camera_.get_camera_info();
+
         camera_info_msg_.id = camera_info->id;
         camera_info_msg_.model = camera_info->model;
         camera_info_msg_.serial_num = camera_info->serial_num;
@@ -252,8 +312,6 @@ private:
         camera_info_msg_.temperature_limits.min = camera_info->temperature_limits.min;
         camera_info_msg_.temperature_limits.max = camera_info->temperature_limits.max;
         camera_info_msg_.temperature_limits.step = camera_info->temperature_limits.step;
-        camera_info_msg_.cool_enabled = camera_params.cool_enabled;
-        camera_info_msg_.target_temp = camera_params.target_temp;
     }
 
     inline void publish_camera_info(std_msgs::msg::Header &header)

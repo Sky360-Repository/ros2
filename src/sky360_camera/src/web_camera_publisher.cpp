@@ -27,9 +27,22 @@ public:
     WebCameraPublisher()
         : ParameterNode("web_camera_publisher_node")
     {
-        image_publisher_ = create_publisher<sky360_camera::msg::BayerImage>("sky360/camera/all_sky/bayer", rclcpp::QoS(10));
-        image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/camera/all_sky/image_info", rclcpp::QoS(10));
-        camera_info_publisher_ = create_publisher<sky360_camera::msg::CameraInfo>("sky360/camera/all_sky/camera_info", rclcpp::QoS(10));
+        // Define the QoS profile
+        rclcpp::QoS qos_profile(10); // The depth of the publisher queue
+
+        // Reliability: use reliable communication. You could also use rclcpp::ReliabilityPolicy::BestEffort if you want to allow dropping of messages
+        qos_profile.reliability(rclcpp::ReliabilityPolicy::BestEffort);
+
+        // Durability: transient local means that the publisher will keep some messages around to send to any future subscribers. 
+        // Volatile means it won't keep any data around.
+        qos_profile.durability(rclcpp::DurabilityPolicy::Volatile);
+
+        // History: keep last will only keep the last few messages, defined by the depth of the queue.
+        qos_profile.history(rclcpp::HistoryPolicy::KeepLast);
+
+        image_publisher_ = create_publisher<sky360_camera::msg::BayerImage>("sky360/camera/all_sky/bayer", qos_profile);
+        image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/camera/all_sky/image_info", qos_profile);
+        camera_info_publisher_ = create_publisher<sky360_camera::msg::CameraInfo>("sky360/camera/all_sky/camera_info", qos_profile);
 
         declare_parameters();
     }
@@ -55,7 +68,7 @@ public:
             }
 
             std_msgs::msg::Header header;
-            header.stamp = this->now();
+            header.stamp = now();
             header.frame_id = boost::uuids::to_string(uuid_generator_());
 
             auto image_info_msg = generate_image_info(header, image);
@@ -82,7 +95,21 @@ public:
 protected:
     void set_parameters_callback(const std::vector<rclcpp::Parameter> &params) override
     {
-        (void)params;
+        for (auto &param : params)
+        {
+            if (param.get_name() == "is_video")
+            {
+                is_video_ = param.as_bool();
+            }
+            else if (param.get_name() == "camera_id")
+            {
+                camera_id_ = param.as_int();
+            }
+            else if (param.get_name() == "video_path")
+            {
+                video_path_ = param.as_string();
+            }
+        }
     }
 
     void declare_parameters() override
@@ -94,7 +121,7 @@ protected:
         };
         ParameterNode::declare_parameters(params);
 
-        is_video_ = get_parameter("is_video").get_value<rclcpp::ParameterType::PARAMETER_BOOL>();
+        // is_video_ = get_parameter("is_video").get_value<rclcpp::ParameterType::PARAMETER_BOOL>();
     }
 
 private:
@@ -114,17 +141,19 @@ private:
         if (!is_video_)
         {
             camera_id_ = get_parameter("camera_id").get_value<rclcpp::ParameterType::PARAMETER_INTEGER>();
+            RCLCPP_INFO(get_logger(), "Camera %d opening", camera_id_);
             video_capture_.open(camera_id_);
+            setHighestResolution(video_capture_);
         }
         else
         {
             video_path_ = get_parameter("video_path").get_value<rclcpp::ParameterType::PARAMETER_STRING>();
+            RCLCPP_INFO(get_logger(), "Video '%s' opening", video_path_.c_str());
             video_capture_.open(video_path_);
         }
-        setHighestResolution(video_capture_);
     }
 
-    static inline bool setHighestResolution(cv::VideoCapture &cap)
+    inline bool setHighestResolution(cv::VideoCapture &cap)
     {
         std::vector<std::pair<int, int>> resolutions = {
             //{3840, 2160},  // 4K UHD
@@ -147,6 +176,7 @@ private:
             if (cap.get(cv::CAP_PROP_FRAME_WIDTH) == resolution.first &&
                 cap.get(cv::CAP_PROP_FRAME_HEIGHT) == resolution.second)
             {
+                RCLCPP_INFO(get_logger(), "Setting resolution for %d x %d", resolution.first, resolution.second);
                 return true;
             }
         }
@@ -189,6 +219,9 @@ private:
         image_info_msg.channels = image.channels();
         image_info_msg.bin_mode = 1;
         image_info_msg.current_temp = 0;
+        image_info_msg.cool_enabled = false;
+        image_info_msg.target_temp = 0;
+        image_info_msg.auto_exposure = false;
 
         return image_info_msg;
     }
@@ -241,8 +274,6 @@ private:
         camera_info_msg_.temperature_limits.min = 0;
         camera_info_msg_.temperature_limits.max = 0;
         camera_info_msg_.temperature_limits.step = 0;
-        camera_info_msg_.cool_enabled = false;
-        camera_info_msg_.target_temp = 0;
     }
 
     inline void publish_camera_info(std_msgs::msg::Header &header)

@@ -49,8 +49,8 @@ private:
 
     void init()
     {
-        sub_qos_profile_.reliability(rclcpp::ReliabilityPolicy::Reliable);
-        sub_qos_profile_.durability(rclcpp::DurabilityPolicy::Volatile); // TransientLocal);
+        sub_qos_profile_.reliability(rclcpp::ReliabilityPolicy::BestEffort);
+        sub_qos_profile_.durability(rclcpp::DurabilityPolicy::Volatile);
         sub_qos_profile_.history(rclcpp::HistoryPolicy::KeepLast);
 
         image_subscription_ = create_subscription<sensor_msgs::msg::Image>(topics_[current_topic_], sub_qos_profile_,
@@ -81,6 +81,7 @@ private:
             if (topic_change)
             {
                 current_topic_ = current_topic_ < 0 ? topics_.size() - 1 : (current_topic_ >= (int)topics_.size() ? 0 : current_topic_);
+                RCLCPP_INFO(get_logger(), "Changing topic to %s", topics_[current_topic_].c_str());
                 image_subscription_ = create_subscription<sensor_msgs::msg::Image>(topics_[current_topic_], sub_qos_profile_,
                     std::bind(&FrameViewer::imageCallback, this, std::placeholders::_1));
                 cv::displayStatusBar("Image Viewer", topics_[current_topic_], 0);
