@@ -16,7 +16,9 @@
 #include "sky360_camera/msg/bayer_image.hpp"
 
 #include <sky360lib/api/camera/qhy_camera.hpp>
-#include <sky360lib/api/utils/autoExposureControl.hpp>
+#include <sky360lib/api/utils/auto_exposure.hpp>
+#include <sky360lib/api/utils/sub_sampler.hpp>
+#include <sky360lib/api/utils/brightness_estimator.hpp>
 #include <sky360lib/api/utils/profiler.hpp>
 
 #include "parameter_node.hpp"
@@ -105,13 +107,13 @@ protected:
             }
             else if (param.get_name() == "exposure")
             {
-                exposure_ = param.as_int();
-                qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Exposure, exposure_);
+                auto exposure = param.as_int();
+                qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Exposure, exposure);
             }
             else if (param.get_name() == "gain")
             {
-                gain_ = param.as_int();
-                qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Gain, gain_);
+                auto gain = param.as_int();
+                qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Gain, gain);
             }
             else if (param.get_name() == "offset")
             {
@@ -174,9 +176,6 @@ protected:
             rclcpp::Parameter("target_temperature", 0.0),
         };
         ParameterNode::declare_parameters(declare_params);
-
-        // auto assign_params = get_parameters({"exposure", "gain", "auto_exposure"});
-        // set_parameters_callback(assign_params);
     }
 
 private:
@@ -186,21 +185,19 @@ private:
     rclcpp::Publisher<sky360_camera::msg::CameraInfo>::SharedPtr camera_info_publisher_;
     sky360_camera::msg::CameraInfo camera_info_msg_;
     sky360lib::camera::QhyCamera qhy_camera_;
-    sky360lib::utils::AutoExposureControl auto_exposure_control_;
+    sky360lib::utils::SubSampler subSampler{50, 50};
+    sky360lib::utils::BrightnessEstimator brightnessEstimator;
+    sky360lib::utils::AutoExposure auto_exposure_control_{0.25, 180, 0.01, 100};
     sky360lib::utils::Profiler profiler_;
     int bayer_format_;
     bool auto_exposure_;
-    int exposure_;
-    int gain_;
 
     inline void open_camera()
     {
-        RCLCPP_INFO(get_logger(), "AllSkyPublisher: open_camera: Exposure: %d, Gain: %d", exposure_, gain_);
-
         qhy_camera_.set_debug_info(false);
         qhy_camera_.open("");
-        qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Exposure, exposure_);
-        qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Gain, gain_);
+        // qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Exposure, exposure_);
+        // qhy_camera_.set_control(sky360lib::camera::QhyCamera::ControlParam::Gain, gain_);
         create_camera_info_msg();
         bayer_format_ = camera_info_msg_.bayer_format;
 
@@ -213,11 +210,14 @@ private:
 
     inline void apply_auto_exposure(const cv::Mat &image, sky360lib::camera::QhyCamera::CameraParams &camera_params)
     {
-        exposure_ = (int)camera_params.exposure;
-        gain_ = (int)camera_params.gain;
-        auto exposure_gain = auto_exposure_control_.calculate_exposure_gain(image, (double)exposure_, (double)gain_);
-        set_parameter({"exposure", (int)exposure_gain.exposure});
-        set_parameter({"gain", (int)exposure_gain.gain});
+        cv::Mat subSampledGray = subSampler.subSample(image);
+        double msv = brightnessEstimator.estimateCurrentBrightness(subSampledGray);
+        double exposure = (double)camera_params.exposure;
+        double gain = (double)camera_params.gain;
+
+        auto_exposure_control_.update(msv, exposure, gain);
+        set_parameter({"exposure", (int)exposure});
+        set_parameter({"gain", (int)gain});
     }
 
     inline void publish_image(const cv::Mat &image, const std_msgs::msg::Header &header, const sky360_camera::msg::ImageInfo &image_info)
