@@ -8,7 +8,7 @@ def generate_launch_description():
             executable='all_sky_publisher_node',
             name='all_sky_publisher_node',
             output='screen',
-            parameters=[{'enable_profiling': False}, {'exposure': 20000}, {'gain': 0}, {'auto_exposure': False}]
+            parameters=[{'enable_profiling': False}, {'exposure': 20000}, {'gain': 0}, {'auto_exposure': True}]
         ),
         Node(
             package='sky360_image_processing',

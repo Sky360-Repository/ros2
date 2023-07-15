@@ -1,8 +1,6 @@
 # BayerFormat Enum
 
-uint32 BAYER_GB = 1
-uint32 BAYER_GR = 2
-uint32 BAYER_BG = 3
-uint32 BAYER_RG = 4
-uint32 MONO = 5
-uint32 COLOR = 6
+string BAYER_GB = "BAYER_GB"
+string BAYER_GR = "BAYER_GR"
+string BAYER_BG = "BAYER_BG"
+string BAYER_RG = "BAYER_RG"

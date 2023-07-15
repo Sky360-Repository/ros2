@@ -4,7 +4,6 @@
 #include <cv_bridge/cv_bridge.hpp>
 
 #include <vision_msgs/msg/bounding_box2_d_array.hpp>
-#include "sky360_camera/msg/bayer_image.hpp"
 
 #include <sky360lib/api/bgs/bgs.hpp>
 #include <sky360lib/api/bgs/WeightedMovingVariance/WeightedMovingVarianceUtils.hpp>
@@ -21,18 +20,18 @@ public:
         : ParameterNode("background_subtractor_node")
     {
         // Define the QoS profile for the subscriber
-        rclcpp::QoS sub_qos_profile(10);
+        rclcpp::QoS sub_qos_profile(2);
         sub_qos_profile.reliability(rclcpp::ReliabilityPolicy::BestEffort);
         sub_qos_profile.durability(rclcpp::DurabilityPolicy::Volatile); // TransientLocal);
         sub_qos_profile.history(rclcpp::HistoryPolicy::KeepLast);
 
         // Define the QoS profile for the publisher
-        rclcpp::QoS pub_qos_profile(10);
+        rclcpp::QoS pub_qos_profile(2);
         pub_qos_profile.reliability(rclcpp::ReliabilityPolicy::BestEffort);
         pub_qos_profile.durability(rclcpp::DurabilityPolicy::Volatile);
         pub_qos_profile.history(rclcpp::HistoryPolicy::KeepLast);
 
-        image_subscription_ = create_subscription<sky360_camera::msg::BayerImage>("sky360/camera/all_sky/bayer", sub_qos_profile,
+        image_subscription_ = create_subscription<sensor_msgs::msg::Image>("sky360/camera/all_sky/bayer", sub_qos_profile,
                                                                                   std::bind(&BackgroundSubtractor::imageCallback, this, std::placeholders::_1));
 
         image_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/all_sky/foreground_mask", pub_qos_profile);
@@ -54,7 +53,7 @@ protected:
     }
 
 private:
-    void imageCallback(const sky360_camera::msg::BayerImage::SharedPtr msg)
+    void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg)
     {
         try
         {
@@ -62,7 +61,9 @@ private:
             {
                 profiler_.start("Frame");
             }
-            cv_bridge::CvImagePtr bayer_img_bridge = cv_bridge::toCvCopy(msg->image, msg->image.encoding);
+
+            msg->encoding = msg->encoding != sensor_msgs::image_encodings::BGR8 ? sensor_msgs::image_encodings::MONO8 : sensor_msgs::image_encodings::BGR8;
+            auto bayer_img_bridge = cv_bridge::toCvShare(msg);
             if (!bayer_img_bridge->image.empty())
             {
                 cv::Mat gray_img{bayer_img_bridge->image};
@@ -153,7 +154,7 @@ private:
         }
     }
 
-    rclcpp::Subscription<sky360_camera::msg::BayerImage>::SharedPtr image_subscription_;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_subscription_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_publisher_;
     rclcpp::Publisher<vision_msgs::msg::BoundingBox2DArray>::SharedPtr detection_publisher_;
 

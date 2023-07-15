@@ -13,11 +13,11 @@
 
 #include "sky360_camera/msg/image_info.hpp"
 #include "sky360_camera/msg/camera_info.hpp"
-#include "sky360_camera/msg/bayer_image.hpp"
 #include "sky360_camera/msg/bayer_format.hpp"
 
 #include "parameter_node.hpp"
 
+#include <sky360lib/api/camera/qhy_camera.hpp>
 #include "sky360lib/api/utils/profiler.hpp"
 
 class WebCameraPublisher
@@ -27,20 +27,12 @@ public:
     WebCameraPublisher()
         : ParameterNode("web_camera_publisher_node")
     {
-        // Define the QoS profile
-        rclcpp::QoS qos_profile(10); // The depth of the publisher queue
-
-        // Reliability: use reliable communication. You could also use rclcpp::ReliabilityPolicy::BestEffort if you want to allow dropping of messages
+        rclcpp::QoS qos_profile(2); // The depth of the publisher queue
         qos_profile.reliability(rclcpp::ReliabilityPolicy::BestEffort);
-
-        // Durability: transient local means that the publisher will keep some messages around to send to any future subscribers. 
-        // Volatile means it won't keep any data around.
         qos_profile.durability(rclcpp::DurabilityPolicy::Volatile);
-
-        // History: keep last will only keep the last few messages, defined by the depth of the queue.
         qos_profile.history(rclcpp::HistoryPolicy::KeepLast);
 
-        image_publisher_ = create_publisher<sky360_camera::msg::BayerImage>("sky360/camera/all_sky/bayer", qos_profile);
+        image_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/camera/all_sky/bayer", qos_profile);
         image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/camera/all_sky/image_info", qos_profile);
         camera_info_publisher_ = create_publisher<sky360_camera::msg::CameraInfo>("sky360/camera/all_sky/camera_info", qos_profile);
 
@@ -67,14 +59,24 @@ public:
                 video_capture_.read(image);
             }
 
+            if (false)
+            {
+                double aspect_ratio = (double)image.size().width / (double)image.size().height;
+                uint32_t frame_height = 1280;
+                uint32_t frame_width = (uint32_t)(aspect_ratio * (double)frame_height);
+                cv::resize(image, image, cv::Size(frame_width, frame_height));
+            }
+
             std_msgs::msg::Header header;
             header.stamp = now();
             header.frame_id = boost::uuids::to_string(uuid_generator_());
 
-            auto image_info_msg = generate_image_info(header, image);
+            auto image_msg = cv_bridge::CvImage(header, image.channels() == 1 ? sensor_msgs::image_encodings::MONO8 : sensor_msgs::image_encodings::BGR8, image).toImageMsg();
+            image_publisher_->publish(*image_msg);
 
-            publish_image(image, header, image_info_msg);
+            auto image_info_msg = generate_image_info(header, image);
             image_info_publisher_->publish(image_info_msg);
+
             publish_camera_info(header);
 
             if (enable_profiling_)
@@ -120,14 +122,12 @@ protected:
             rclcpp::Parameter("video_path", ""),
         };
         ParameterNode::declare_parameters(params);
-
-        // is_video_ = get_parameter("is_video").get_value<rclcpp::ParameterType::PARAMETER_BOOL>();
     }
 
 private:
     boost::uuids::random_generator uuid_generator_;
     cv::VideoCapture video_capture_;
-    rclcpp::Publisher<sky360_camera::msg::BayerImage>::SharedPtr image_publisher_;
+    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_publisher_;
     rclcpp::Publisher<sky360_camera::msg::ImageInfo>::SharedPtr image_info_publisher_;
     rclcpp::Publisher<sky360_camera::msg::CameraInfo>::SharedPtr camera_info_publisher_;
     sky360_camera::msg::CameraInfo camera_info_msg_;
@@ -184,18 +184,6 @@ private:
         return false;
     }
 
-    inline void publish_image(const cv::Mat &image, const std_msgs::msg::Header &header, const sky360_camera::msg::ImageInfo &image_info)
-    {
-        auto image_msg = cv_bridge::CvImage(header, image.channels() == 1 ? sensor_msgs::image_encodings::MONO8 : sensor_msgs::image_encodings::BGR8, image).toImageMsg();
-
-        sky360_camera::msg::BayerImage bayer_image_msg;
-        bayer_image_msg.header = header;
-        bayer_image_msg.image = *image_msg;
-        bayer_image_msg.info = image_info;
-
-        image_publisher_->publish(bayer_image_msg);
-    }
-
     inline sky360_camera::msg::ImageInfo generate_image_info(std_msgs::msg::Header &header, const cv::Mat& image)
     {
         sky360_camera::msg::ImageInfo image_info_msg;
@@ -206,7 +194,7 @@ private:
         image_info_msg.roi.width = image.size().width;
         image_info_msg.roi.height = image.size().height;
         image_info_msg.bpp = image.elemSize1() == 1 ? 8 : 16;
-        image_info_msg.bayer_format = image.channels() == 1 ? sky360_camera::msg::BayerFormat::MONO : sky360_camera::msg::BayerFormat::COLOR;
+        image_info_msg.bayer_format = image.channels() == 1 ? sky360lib::camera::QhyCamera::BayerFormat::Mono : sky360lib::camera::QhyCamera::BayerFormat::Color;
         image_info_msg.exposure = 0;
         image_info_msg.gain = 0;
         image_info_msg.offset = 0;
@@ -246,7 +234,7 @@ private:
         camera_info_msg_.chip.max_image_width = (uint32_t)video_capture_.get(cv::CAP_PROP_FRAME_WIDTH);
         camera_info_msg_.chip.max_image_height = (uint32_t)video_capture_.get(cv::CAP_PROP_FRAME_HEIGHT);
         camera_info_msg_.chip.max_bpp = 8;
-        camera_info_msg_.bayer_format = sky360_camera::msg::BayerFormat::COLOR;
+        camera_info_msg_.bayer_format = sky360lib::camera::QhyCamera::BayerFormat::Color;
         camera_info_msg_.is_color = true;
         camera_info_msg_.is_cool = false;
         camera_info_msg_.has_bin1x1_mode = true;

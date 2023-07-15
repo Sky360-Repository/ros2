@@ -73,7 +73,7 @@ private:
                 profiler_.start("Frame");
             }
 
-            cv_bridge::CvImagePtr masked_img_bridge = cv_bridge::toCvCopy(masked_image_msg, masked_image_msg->encoding);
+            auto masked_img_bridge = cv_bridge::toCvShare(masked_image_msg);
 
             auto annotated_frame = annotated_frame_creator_.create_frame(masked_img_bridge->image, *tracking_state_msg, *detections_msg, *trajectory_msg, *prediction_msg);
 

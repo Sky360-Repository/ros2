@@ -8,7 +8,6 @@
 
 #include "sky360_camera/msg/image_info.hpp"
 #include "sky360_camera/msg/camera_info.hpp"
-#include "sky360_camera/msg/bayer_image.hpp"
 #include "sky360_camera/msg/bayer_format.hpp"
 
 #include <sky360lib/api/utils/profiler.hpp>
@@ -23,23 +22,21 @@ public:
         : ParameterNode("frame_provider_node")
     {
         // Define the QoS profile for the subscriber
-        rclcpp::QoS sub_qos_profile(10);
+        rclcpp::QoS sub_qos_profile(2);
         sub_qos_profile.reliability(rclcpp::ReliabilityPolicy::BestEffort);
         sub_qos_profile.durability(rclcpp::DurabilityPolicy::Volatile);
         sub_qos_profile.history(rclcpp::HistoryPolicy::KeepLast);
 
         // Define the QoS profile for the publisher
-        rclcpp::QoS pub_qos_profile(10);
+        rclcpp::QoS pub_qos_profile(2);
         pub_qos_profile.reliability(rclcpp::ReliabilityPolicy::BestEffort);
         pub_qos_profile.durability(rclcpp::DurabilityPolicy::Volatile);
         pub_qos_profile.history(rclcpp::HistoryPolicy::KeepLast);
 
-        image_subscription_ = create_subscription<sky360_camera::msg::BayerImage>("sky360/camera/all_sky/bayer", sub_qos_profile,
+        image_subscription_ = create_subscription<sensor_msgs::msg::Image>("sky360/camera/all_sky/bayer", sub_qos_profile,
             std::bind(&FrameProvider::imageCallback, this, std::placeholders::_1));
 
-        //gray_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/all_sky/gray", rclcpp::QoS(10));
         masked_publisher_ = create_publisher<sensor_msgs::msg::Image>("sky360/frames/all_sky/masked", pub_qos_profile);
-        image_info_publisher_ = create_publisher<sky360_camera::msg::ImageInfo>("sky360/frames/all_sky/image_info", pub_qos_profile);
 
         declare_parameters();
     }
@@ -55,7 +52,7 @@ protected:
     }
 
 private:
-    void imageCallback(const sky360_camera::msg::BayerImage::SharedPtr msg)
+    void imageCallback(const sensor_msgs::msg::Image::SharedPtr msg)
     {
         try
         {
@@ -64,17 +61,20 @@ private:
                 profiler_.start("Frame");
             }
 
-            cv_bridge::CvImagePtr bayer_img_bridge = cv_bridge::toCvCopy(msg->image, msg->image.encoding);
+            auto pattern = msg->encoding;
+            msg->encoding = msg->encoding != sensor_msgs::image_encodings::BGR8 ? sensor_msgs::image_encodings::MONO8 : sensor_msgs::image_encodings::BGR8;
+
+            auto bayer_img_bridge = cv_bridge::toCvShare(msg);
             if (!bayer_img_bridge->image.empty())
             {
                 cv::Mat debayered_img;
-                debayer_image(bayer_img_bridge->image, debayered_img, msg->info.bayer_format);
+                debayer_image(bayer_img_bridge->image, debayered_img, pattern);
 
                 cv::Mat the_img;
-                uint32_t frame_width = debayered_img.size().width;
-                uint32_t frame_height = debayered_img.size().height;
                 if (false) // Resize frame
                 {
+                    uint32_t frame_width = debayered_img.size().width;
+                    uint32_t frame_height = debayered_img.size().height;
                     double aspect_ratio = (double)debayered_img.size().width / (double)debayered_img.size().height;
                     frame_height = 1280;
                     frame_width = ((uint32_t)(aspect_ratio * (double)frame_height)) & 0xFFFFFFFE;
@@ -87,25 +87,6 @@ private:
 
                 auto the_image_msg = cv_bridge::CvImage(msg->header, the_img.channels() == 1 ? sensor_msgs::image_encodings::MONO8 : sensor_msgs::image_encodings::BGR8, the_img).toImageMsg();
                 masked_publisher_->publish(*the_image_msg);
-
-                sky360_camera::msg::ImageInfo frame_info_msg = msg->info;
-                frame_info_msg.roi.start_x = 0;
-                frame_info_msg.roi.start_y = 0;
-                frame_info_msg.roi.width = frame_width;
-                frame_info_msg.roi.height = frame_height;
-                image_info_publisher_->publish(frame_info_msg);
-
-                // if (the_img.channels() > 1)
-                // {
-                //     cv::Mat gray_img;
-                //     cv::cvtColor(the_img, gray_img, cv::COLOR_BGR2GRAY);
-                //     auto gray_image_msg = cv_bridge::CvImage(msg->header, sensor_msgs::image_encodings::MONO8, gray_img).toImageMsg();
-                //     gray_publisher_->publish(*gray_image_msg);
-                // }
-                // else
-                // {
-                //     gray_publisher_->publish(*the_image_msg);
-                // }
             }
 
             if (enable_profiling_)
@@ -125,28 +106,33 @@ private:
         }
     }
 
-    static inline int convert_bayer_pattern(uint32_t _bayerFormat)
+    static inline int convert_bayer_pattern(const std::string& _bayerFormat)
     {
-        switch (_bayerFormat)
+        if (_bayerFormat == sky360_camera::msg::BayerFormat::BAYER_GB)
         {
-        case sky360_camera::msg::BayerFormat::BAYER_GB:
             return cv::COLOR_BayerGR2BGR; //!< equivalent to GBRG Bayer pattern
-        case sky360_camera::msg::BayerFormat::BAYER_GR:
+        }
+        else if (_bayerFormat == sky360_camera::msg::BayerFormat::BAYER_GR)
+        {
             return cv::COLOR_BayerGB2BGR; //!< equivalent to GRBG Bayer pattern
-        case sky360_camera::msg::BayerFormat::BAYER_BG:
-            return cv::COLOR_BayerRG2BGR; //!< equivalent to BGGR Bayer pattern
-        case sky360_camera::msg::BayerFormat::BAYER_RG:
-            return cv::COLOR_BayerBG2BGR; //!< equivalent to RGGB Bayer pattern
+        }
+        else if (_bayerFormat == sky360_camera::msg::BayerFormat::BAYER_BG)
+        {
+            return cv::COLOR_BayerRG2BGR; //!< equivalent to GRBG Bayer pattern
+        }
+        else if (_bayerFormat == sky360_camera::msg::BayerFormat::BAYER_RG)
+        {
+            return cv::COLOR_BayerBG2BGR; //!< equivalent to GRBG Bayer pattern
         }
         return cv::COLOR_BayerGR2BGR;
     }
 
-    void debayer_image(const cv::Mat &_image_in, cv::Mat &_image_out, uint32_t _bayerFormat) const
+    void debayer_image(const cv::Mat &_image_in, cv::Mat &_image_out, const std::string& _bayerFormatStr) const
     {
-        if (_bayerFormat != sky360_camera::msg::BayerFormat::COLOR 
-            && _bayerFormat != sky360_camera::msg::BayerFormat::MONO)
+        if (_bayerFormatStr != sensor_msgs::image_encodings::BGR8 
+            && _bayerFormatStr != sensor_msgs::image_encodings::MONO8)
         {
-            cv::cvtColor(_image_in, _image_out, convert_bayer_pattern(_bayerFormat));
+            cv::cvtColor(_image_in, _image_out, convert_bayer_pattern(_bayerFormatStr));
         }
         else
         {
@@ -154,10 +140,8 @@ private:
         }
     }
 
-    rclcpp::Subscription<sky360_camera::msg::BayerImage>::SharedPtr image_subscription_;
-    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr gray_publisher_;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_subscription_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr masked_publisher_;
-    rclcpp::Publisher<sky360_camera::msg::ImageInfo>::SharedPtr image_info_publisher_;
 
     sky360lib::utils::Profiler profiler_;
 };

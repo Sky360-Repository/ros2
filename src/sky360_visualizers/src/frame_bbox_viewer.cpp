@@ -57,7 +57,7 @@ private:
         sub_image_.subscribe(this, topics_[current_topic_], rmw_qos_profile);
         sub_bbox_.subscribe(this, "sky360/detector/all_sky/bounding_boxes", rmw_qos_profile);
 
-        time_synchronizer_ = std::make_shared<message_filters::TimeSynchronizer<sensor_msgs::msg::Image, vision_msgs::msg::BoundingBox2DArray>>(sub_image_, sub_bbox_, 10);
+        time_synchronizer_ = std::make_shared<message_filters::TimeSynchronizer<sensor_msgs::msg::Image, vision_msgs::msg::BoundingBox2DArray>>(sub_image_, sub_bbox_, 2);
         time_synchronizer_->registerCallback(&FrameBBoxViewer::imageCallback, this);
 
         cv::namedWindow("Image Viewer", cv::WINDOW_NORMAL);
@@ -73,7 +73,7 @@ private:
                 profiler_.start("Frame");
             }
 
-            cv::Mat frame = cv_bridge::toCvCopy(image_msg, image_msg->encoding)->image;
+            cv::Mat frame = cv_bridge::toCvShare(image_msg, image_msg->encoding)->image;
 
             for (const auto &bbox2D : bbox_msg->boxes)
             {

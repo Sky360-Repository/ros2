@@ -69,7 +69,7 @@ private:
                 profiler_.start("Frame");
             }
 
-            cv::Mat frame = cv_bridge::toCvCopy(masked_image_msg, masked_image_msg->encoding)->image;
+            cv::Mat frame = cv_bridge::toCvShare(masked_image_msg)->image;
             cv::imshow("Image Viewer", frame);
             int key = cv::waitKey(1);
             bool topic_change = false;
