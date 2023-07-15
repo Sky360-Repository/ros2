@@ -61,11 +61,14 @@ private:
                 profiler_.start("Frame");
             }
 
+            auto pattern = msg->encoding;
+            msg->encoding = msg->encoding != sensor_msgs::image_encodings::BGR8 ? sensor_msgs::image_encodings::MONO8 : sensor_msgs::image_encodings::BGR8;
+
             auto bayer_img_bridge = cv_bridge::toCvShare(msg);
             if (!bayer_img_bridge->image.empty())
             {
                 cv::Mat debayered_img;
-                debayer_image(bayer_img_bridge->image, debayered_img, bayer_img_bridge->encoding);
+                debayer_image(bayer_img_bridge->image, debayered_img, pattern);
 
                 cv::Mat the_img;
                 if (false) // Resize frame

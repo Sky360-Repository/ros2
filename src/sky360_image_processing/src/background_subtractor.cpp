@@ -61,6 +61,8 @@ private:
             {
                 profiler_.start("Frame");
             }
+
+            msg->encoding = msg->encoding != sensor_msgs::image_encodings::BGR8 ? sensor_msgs::image_encodings::MONO8 : sensor_msgs::image_encodings::BGR8;
             auto bayer_img_bridge = cv_bridge::toCvShare(msg);
             if (!bayer_img_bridge->image.empty())
             {
